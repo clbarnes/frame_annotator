@@ -1,21 +1,23 @@
 #!/usr/bin/env python
-import asyncio
 import itertools
 import sys
 import warnings
 from argparse import ArgumentParser, RawTextHelpFormatter
 from collections import deque, defaultdict
+from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
-from io import StringIO, BytesIO
+from functools import lru_cache
+from queue import Queue
+from threading import Lock
 from typing import Deque, Tuple, Optional
 import logging
 from string import ascii_letters
 import contextlib
 
+from matplotlib import pyplot as plt
 import pandas as pd
 import imageio
 import numpy as np
-from async_lru import alru_cache
 from skimage.exposure import rescale_intensity
 
 with contextlib.redirect_stdout(None):
@@ -24,6 +26,7 @@ with contextlib.redirect_stdout(None):
 
 DEFAULT_CACHE_SIZE = 500
 DEFAULT_FPS = 30
+DEFAULT_THREADS = 3
 
 DESCRIPTION = """
 - Hold right or left to play the video at a reasonable (and configurable) FPS
@@ -46,10 +49,12 @@ logger = logging.getLogger(__name__)
 class FrameAccessor:
     def __init__(self, fpath, **kwargs):
         self.logger = logger.getChild(type(self).__name__)
+        self.lock = Lock()
 
         self.fpath = fpath
-        self.reader = imageio.get_reader(fpath, mode='I', **kwargs)
-        self.len = self.reader.get_length()
+        with self.lock:
+            self.reader = imageio.get_reader(fpath, mode='I', **kwargs)
+            self.len = self.reader.get_length()
         self.logger.info("Detected %s frames", self.len)
         first = self[0]
         self.frame_shape = first.shape
@@ -64,66 +69,38 @@ class FrameAccessor:
         return self.len
 
     def __getitem__(self, item):
-        self.logger.debug(f"__getitem__(%s)", item)
-        return self.reader.get_data(item)
+        with self.lock:
+            return self.reader.get_data(item)
 
     def __iter__(self):
         for idx in range(len(self)):
             yield self[idx]
 
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        return self.close()
-
-
-class Result:
-    def __init__(self, awa):
-        self.awa = awa
-
-    async def result(self):
-        if not self.awa.done():
-            await self.awa
-        return self.awa.result()
-
-    def cancel(self):
-        if not self.awa.done():
-            self.awa.cancel()
-
 
 class FrameSpooler:
-    def __init__(self, fpath, cache_size=100, max_workers=None, **kwargs):
+    def __init__(self, fpath, cache_size=100, max_workers=5, **kwargs):
         self.logger = logger.getChild(type(self).__name__)
 
-        self.frames = FrameAccessor(fpath, **kwargs)
+        frames = FrameAccessor(fpath, **kwargs)
+        self.frame_shape = frames.frame_shape
+        self.frame_count = len(frames)
 
         try:
             self.converter = {
                 np.dtype("uint8"): self.from_uint8,
                 np.dtype("uint16"): self.from_uint16,
-            }[self.frames.dtype]
+            }[frames.dtype]
         except KeyError:
-            raise ValueError(f"Image data type not supported: {self.frames.dtype}")
+            raise ValueError(f"Image data type not supported: {frames.dtype}")
+
+        self.accessor_pool = Queue()
+        self.accessor_pool.put(frames)
+        for _ in range(max_workers - 1):
+            self.accessor_pool.put(FrameAccessor(fpath, **kwargs))
 
         self.current_idx = 0
 
-        fshape = self.frames.frame_shape
-
-        self.mode = None
-        if len(fshape) == 2:
-            self.mode = 'P'
-        elif len(fshape) == 3:
-            if fshape[-1] == 3:
-                self.mode = 'RGB'
-            elif fshape[-1] == 4:
-                self.mode = 'RGBX'
-        if self.mode is None:
-            raise RuntimeError("Could not infer image mode")
-
-        self.logger.info("Using image mode %s", self.mode)
-
-        self.pyg_size = self.frames.frame_shape[1::-1]
+        self.pyg_size = self.frame_shape[1::-1]
 
         self.half_cache = cache_size // 2
 
@@ -135,19 +112,21 @@ class FrameSpooler:
         self.contrast_upper = self.contrast_max
 
         self.idx_in_cache = 0
-        cache_size = min(cache_size, len(self.frames))
+        cache_size = min(cache_size, len(frames))
 
-        self.executor = ThreadPoolExecutor(max_workers=1)
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
 
-        self.cache: Deque[Result] = deque(
+        self.cache: Deque[Future] = deque(
             [self.fetch_frame(idx) for idx in range(cache_size)],
             cache_size
         )
 
-        self.lock = asyncio.Lock()
 
-        self.logger.debug("mode: %s", self.mode)
-        self.logger.debug("pyg_size: %s", self.pyg_size)
+    @contextlib.contextmanager
+    def frames(self):
+        accessor = self.accessor_pool.get(block=True)
+        yield accessor
+        self.accessor_pool.put(accessor)
 
     def cache_range(self):
         """in frame number"""
@@ -171,37 +150,34 @@ class FrameSpooler:
             self.cache[idx] = self.fetch_frame(self.cache_idx_to_frame_idx(idx))
 
     def update_contrast(self, lower=None, upper=None, freeze_cache=False):
-        needs_renewing = False
+        changed = False
 
         if lower is not None:
             lower = max(self.contrast_min, lower)
             if lower != self.contrast_lower:
                 self.contrast_lower = lower
-                needs_renewing = True and not freeze_cache
+                changed = True
 
         if upper is not None:
             upper = min(self.contrast_max, upper)
             if upper != self.contrast_upper:
                 self.contrast_upper = upper
-                needs_renewing = True and not freeze_cache
+                changed = True
 
-        self.logger.debug("updating contrast to %s, %s", self.contrast_lower, self.contrast_upper)
-
-        if needs_renewing:
-            self.renew_cache()
-        else:
-            self.cache[self.idx_in_cache].cancel()
-            self.cache[self.idx_in_cache] = self.fetch_frame(self.current_idx)
-        return needs_renewing
+        if changed:
+            self.logger.debug("updating contrast to %s, %s", self.contrast_lower, self.contrast_upper)
+            if freeze_cache:
+                self.cache[self.idx_in_cache].cancel()
+                self.cache[self.idx_in_cache] = self.fetch_frame(self.current_idx)
+            else:
+                self.renew_cache()
+        return changed
 
     def from_uint8(self, arr):
         return arr
 
     def from_uint16(self, arr):
-        # stretch = 39, 100
-        # out = ((arr//256 - stretch[0]) * 2).astype('uint8')
         out = (arr//256).astype('uint8')
-        self.logger.debug("Got img with range %s, %s", out.min(), out.max())
         return out
 
     @property
@@ -228,7 +204,7 @@ class FrameSpooler:
         return self.current
 
     def next(self):
-        if self.current_idx < len(self.frames) - 1:
+        if self.current_idx < self.frame_count - 1:
             self.current_idx += 1
             if self.idx_in_cache < self.half_cache:
                 self.idx_in_cache += 1
@@ -246,29 +222,40 @@ class FrameSpooler:
             result = method()
         return result
 
-    async def _noframe(self):
-        return None
-
     def fetch_frame(self, idx):
-        if 0 <= idx < len(self.frames):
-            coro = self._fetch_frame(idx, self.contrast_lower, self.contrast_upper)
+        if 0 <= idx < self.frame_count:
+            f = self.executor.submit(
+                self._fetch_frame, idx, self.contrast_lower, self.contrast_upper
+            )
         else:
-            coro = self._noframe()
-        return Result(asyncio.create_task(coro))
+            f = Future()
+            f.set_result(None)
+        return f
 
-    def apply_contrast(self, img, constrast_lower, contrast_upper):
-        return rescale_intensity(img, (constrast_lower, contrast_upper))
+    def apply_contrast(self, img, contrast_lower, contrast_upper):
+        return rescale_intensity(img, (contrast_lower, contrast_upper))
 
-    @alru_cache(maxsize=100)
-    async def _fetch_frame(self, idx, contrast_lower, contrast_upper) -> bytes:
+    @lru_cache(maxsize=100)
+    def _fetch_frame(self, idx, contrast_lower, contrast_upper):
         # todo: resize?
-        return self.apply_contrast(
-            self.converter(self.frames[idx]), contrast_lower, contrast_upper
-        ).tostring()
+        with self.frames() as frames:
+            arr = frames[idx]
+
+        arr = self.apply_contrast(
+            self.converter(arr), contrast_lower, contrast_upper
+        )
+        return arr
 
     def close(self):
-        self.frames.close()
-        # self._fetch_frame.close()
+        for f in self.cache:
+            f.cancel()
+        self.executor.shutdown()
+        self.accessor_pool.put(None)
+        while True:
+            frames = self.accessor_pool.get()
+            if frames is None:
+                break
+            frames.close()
 
     def __enter__(self):
         return self
@@ -376,50 +363,6 @@ class EventLogger:
         )
 
 
-class PygameWindow:
-    def __init__(self, size, fps=DEFAULT_FPS):
-        pygame.init()
-        self.size = size
-        self.fps = fps
-        self.clock = pygame.time.Clock()
-        self.screen = pygame.display.set_mode(size)
-        self.surf: pygame.Surface = pygame.image.fromstring(
-            np.zeros(self.size, dtype='uint8').tostring(), self.size, 'P'
-        )
-        self.surf.set_palette([(idx, idx, idx) for idx in range(256)])
-
-    def draw(self):
-        self.screen.fill(BLACK)
-        self.screen.blit(self.surf, (0, 0))
-        pygame.display.update()
-        self.clock.tick(self.fps)
-        return True
-
-    def draw_array(self, arr: np.ndarray):
-        if arr.shape != self.size[::-1] or arr.dtype != np.dtype('uint8'):
-            warnings.warn(f"inappropriate array passed ({arr.shape}, {arr.dtype})")
-            return False
-
-        self.surf.get_buffer().write(arr.tostring())
-
-
-        #     self.apply_contrast(
-        #         self.converter(self.frames[idx]), contrast_lower, contrast_upper
-        #     ).tostring(),
-        #     self.pyg_size, self.mode
-        # )
-        return self.draw()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
-
-    def close(self):
-        pygame.quit()
-
-
 class Window:
     def __init__(self, spooler: FrameSpooler, fps=DEFAULT_FPS):
         self.logger = logger.getChild(type(self).__name__)
@@ -429,21 +372,21 @@ class Window:
 
         pygame.init()
         self.clock = pygame.time.Clock()
-        self.screen = pygame.display.set_mode(spooler.pyg_size)
-        self.surf: pygame.Surface = pygame.image.fromstring(
-            np.zeros(spooler.pyg_size, dtype='uint8').tostring(), spooler.pyg_size, 'P'
-        )
-        self.surf.set_palette([(idx, idx, idx) for idx in range(256)])
+        first = self.spooler.current.result()
+        self.im_surf: pygame.Surface = pygame.surfarray.make_surface(first.T)
+        width, height = self.im_surf.get_size()
+        self.screen = pygame.display.set_mode((width, height))
+        self.im_surf.set_palette([(idx, idx, idx) for idx in range(256)])
+        self.screen.blit(self.im_surf, (0, 0))
+        pygame.display.update()
 
         self.events = EventLogger()
 
-    async def step(self, step=0, force_update=False):
+    def step(self, step=0, force_update=False):
         if step or force_update:
-            # old_frame = self.spooler.current_idx
-            # async with self.spooler.lock:
-            surf_bytes = await self.spooler.step(step).result()
+            arr = self.spooler.step(step).result()
 
-            self.draw_bytes(surf_bytes)
+            self.draw_array(arr)
 
         self.clock.tick(self.fps)
 
@@ -479,7 +422,11 @@ class Window:
                 elif event.key == pygame.K_SPACE:
                     self.print(f"Active events @ frame {self.spooler.current_idx}:\n\t{sorted(self.active_events())}")
                 elif event.key == pygame.K_BACKSPACE:
-                    self.print(f"Frame {self.spooler.current_idx}")
+                    self.print(
+                        f"Frame {self.spooler.current_idx}, "
+                        f"contrast = ({self.spooler.contrast_lower / 255:.02f}, "
+                        f"{self.spooler.contrast_upper / 255:.02f})"
+                    )
             elif event.type == pygame.KEYUP:
                 if event.key in (pygame.K_UP, pygame.K_DOWN):
                     self.spooler.renew_cache()
@@ -522,20 +469,18 @@ class Window:
     def results(self):
         return self.events.to_df()
 
-    def draw_bytes(self, b):
-        self.surf.get_buffer().write(b)
-        self.screen.fill(BLACK)
-        self.screen.blit(self.surf, (0, 0))
+    def draw_array(self, arr):
+        pygame.surfarray.blit_array(self.im_surf, arr.T)
+        self.screen.blit(self.im_surf, (0, 0))
+
         pygame.display.update()
 
-    async def loop(self):
-        self.draw_bytes(await self.spooler.current.result())
-
+    def loop(self):
         while True:
             step_or_none, should_update = self.handle_events()
             if step_or_none is None:
                 break
-            await self.step(step_or_none, should_update)
+            self.step(step_or_none, should_update)
 
         return self.results()
 
@@ -556,54 +501,15 @@ def parse_args():
     parser.add_argument("--outfile", "-o", help="Path to save a CSV to")
     parser.add_argument("--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second")
     parser.add_argument("--cache", type=int, default=DEFAULT_CACHE_SIZE, help="Approximately how many frames to cache")
+    parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="number of threads to use for reading file")
 
     return parser.parse_args()
 
 
-def main():
-    logging.basicConfig(level=logging.DEBUG)
-    parsed_args = parse_args()
-
-    asyncio.run(main_loop(parsed_args.infile, parsed_args.outfile, parsed_args.cache, parsed_args.fps))
-
-
-class TestFetcher:
-    def __init__(self, fpath, max_workers=5):
-        self.fa = FrameAccessor(fpath)
-        self.exe = ThreadPoolExecutor(max_workers)
-
-    def get_frame_fut(self, idx):
-        return self.exe.submit(self.get_frame, idx)
-
-    def get_frame(self, idx):
-        return self.fa[idx]
-
-
-def test():
-    logging.basicConfig(level=logging.DEBUG)
-    parsed_args = parse_args()
-
-    fetcher = TestFetcher(parsed_args.infile, 1)
-    print("submitting", flush=True)
-    lst = [fetcher.get_frame_fut(idx) for idx in range(100)]
-    print("submitted", flush=True)
-
-    for idx, item in enumerate(lst):
-        item.result()
-        print(f"loaded {idx}", flush=True)
-
-    # fa = FrameAccessor(parsed_args.infile)
-    # frames = np.array([rescale_intensity((fa[idx]//256).astype('uint8')) for idx in range(100)], dtype='uint8')
-    # size = fa.frame_shape[::-1]
-    # with PygameWindow(size) as win:
-    #     for frame in frames:
-    #         win.draw_array(frame)
-
-
-async def main_loop(fpath, out_path=None, cache_size=DEFAULT_CACHE_SIZE, max_fps=DEFAULT_FPS):
-    spooler = FrameSpooler(fpath, cache_size)
+def main(fpath, out_path=None, cache_size=DEFAULT_CACHE_SIZE, max_fps=DEFAULT_FPS, threads=DEFAULT_THREADS):
+    spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
     with Window(spooler, max_fps) as w:
-        output = await w.loop()
+        output = w.loop()
 
     if out_path:
         output.to_csv(out_path)
@@ -614,5 +520,6 @@ async def main_loop(fpath, out_path=None, cache_size=DEFAULT_CACHE_SIZE, max_fps
 
 
 if __name__ == '__main__':
-    # main()
-    test()
+    logging.basicConfig(level=logging.DEBUG)
+    parsed_args = parse_args()
+    main(parsed_args.infile, parsed_args.outfile, parsed_args.cache, parsed_args.fps, parsed_args.threads)

@@ -13,9 +13,9 @@ setup(
     install_requires=[
         "imageio",
         "pygame",
-        "async_lru",
         "pandas",
         "numpy",
+        "scikit-image",
     ],
     long_description=long_description,
     long_description_content_type='text/markdown',
