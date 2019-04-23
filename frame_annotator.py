@@ -1,12 +1,12 @@
 #!/usr/bin/env python
 import itertools
 import sys
-import warnings
 from argparse import ArgumentParser, RawTextHelpFormatter
 from collections import deque, defaultdict
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
 from functools import lru_cache
+from pathlib import Path
 from queue import Queue
 from threading import Lock
 from typing import Deque, Tuple, Optional
@@ -14,19 +14,26 @@ import logging
 from string import ascii_letters
 import contextlib
 
-from matplotlib import pyplot as plt
 import pandas as pd
 import imageio
 import numpy as np
+import toml
 from skimage.exposure import rescale_intensity
 
 with contextlib.redirect_stdout(None):
     import pygame
 
 
-DEFAULT_CACHE_SIZE = 500
-DEFAULT_FPS = 30
-DEFAULT_THREADS = 3
+logger = logging.getLogger(__name__)
+
+here = Path(__file__).absolute()
+project_dir = here.parent
+config_path = project_dir / "config.toml"
+default_config = toml.load(config_path)
+
+DEFAULT_CACHE_SIZE = default_config["settings"]["cache"]
+DEFAULT_FPS = default_config["settings"]["fps"]
+DEFAULT_THREADS = default_config["settings"]["threads"]
 
 DESCRIPTION = """
 - Hold right or left to play the video at a reasonable (and configurable) FPS
@@ -36,14 +43,14 @@ DESCRIPTION = """
   - Marking the onset and end of an event at the same frame will remove both annotations
 - Press Space to see which events are currently in progress
 - Press Enter to see the table of results in the console
-- Press Backspace to see the current frame number
+- Press Backspace to see the current frame number and contrast thresholds
+- Ctrl + s to save
+- Ctrl + h to show this message
 """.rstrip()
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 LETTERS = set(ascii_letters)
-
-logger = logging.getLogger(__name__)
 
 
 class FrameAccessor:
@@ -120,7 +127,6 @@ class FrameSpooler:
             [self.fetch_frame(idx) for idx in range(cache_size)],
             cache_size
         )
-
 
     @contextlib.contextmanager
     def frames(self):
@@ -275,8 +281,13 @@ def sort_key(start_stop_event):
 
 
 class EventLogger:
-    def __init__(self):
+    def __init__(self, key_mapping=None):
+        self.key_mapping = key_mapping or dict()
         self.events = defaultdict(set)
+
+    def name(self, key):
+        key = key.lower()
+        return self.key_mapping.get(key, key)
 
     def keys(self):
         return {k.lower() for k in self.events}
@@ -351,20 +362,54 @@ class EventLogger:
             yield last_start, None
 
     def to_df(self):
-        start_stop_event = []
+        rows = []
         for key in self.keys():
             for start, stop in self.start_stop_pairs(key):
-                start_stop_event.append((start, stop, key))
+                rows.append((start, stop, key, self.name(key)))
 
         return pd.DataFrame(
-            sorted(start_stop_event, key=sort_key),
-            columns=["start", "stop", "event"],
+            sorted(rows, key=sort_key),
+            columns=["start", "stop", "key", "event"],
             dtype=object
         )
 
+    def save(self, fpath=None, **kwargs):
+        if fpath is None:
+            print(str(self))
+        else:
+            df = self.to_df()
+            df.to_csv(fpath, **kwargs)
+
+    def __str__(self):
+        output = self.to_df()
+        rows = [','.join(output.columns)]
+        for row in output.itertuples(index=False):
+            rows.append(','.join(row))
+        return '\n'.join(rows)
+
+    @classmethod
+    def from_df(cls, df: pd.DataFrame, key_mapping=None):
+        el = EventLogger()
+        for start, stop, key, event in df.itertuples(index=False):
+            el.key_mapping[key] = event
+            el.events[event] = start
+            el.events[event.upper()] = stop
+
+        if key_mapping is not None:
+            for k, v in key_mapping.items():
+                existing = el.key_mapping.get(k)
+                if existing is None:
+                    el.key_mapping[k] = v
+                elif existing != v:
+                    raise ValueError("Given key mapping incompatible with given data")
+
+    @classmethod
+    def from_csv(cls, fpath, key_mapping=None):
+        return cls.from_df(pd.read_csv(fpath), key_mapping)
+
 
 class Window:
-    def __init__(self, spooler: FrameSpooler, fps=DEFAULT_FPS):
+    def __init__(self, spooler: FrameSpooler, fps=DEFAULT_FPS, key_mapping=None, out_path=None):
         self.logger = logger.getChild(type(self).__name__)
 
         self.spooler = spooler
@@ -380,7 +425,8 @@ class Window:
         self.screen.blit(self.im_surf, (0, 0))
         pygame.display.update()
 
-        self.events = EventLogger()
+        self.events = EventLogger.from_csv(out_path, key_mapping) if out_path else EventLogger(key_mapping)
+        self.out_path = out_path
 
     def step(self, step=0, force_update=False):
         if step or force_update:
@@ -414,6 +460,10 @@ class Window:
                         return 1, True
                     elif event.key == pygame.K_LEFT:
                         return -1, True
+                    elif event.key == pygame.K_s:
+                        self.save()
+                    elif event.key == pygame.K_h:
+                        self.print(DESCRIPTION)
                 elif event.unicode in LETTERS:
                     self.events.log(event.unicode, self.spooler.current_idx)
                 elif event.key == pygame.K_RETURN:
@@ -469,6 +519,9 @@ class Window:
     def results(self):
         return self.events.to_df()
 
+    def save(self, fpath=None):
+        self.events.save(fpath or self.out_path)
+
     def draw_array(self, arr):
         pygame.surfarray.blit_array(self.im_surf, arr.T)
         self.screen.blit(self.im_surf, (0, 0))
@@ -495,31 +548,65 @@ class Window:
         self.close()
 
 
+def parse_keys(s):
+    d = dict()
+    for pair in s.split(','):
+        for event, key in pair.split('='):
+            if len(key) > 1:
+                raise ValueError("keys must be 1 character long")
+            d[key.lower()] = event
+    return d
+
+
 def parse_args():
     parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawTextHelpFormatter)
     parser.add_argument("infile", help="Path to multipage TIFF file to read")
-    parser.add_argument("--outfile", "-o", help="Path to save a CSV to")
+    parser.add_argument("--outfile", "-o", help="Path to CSV for loading/saving")
+    parser.add_argument("--config", help="Path to TOML file for config")
     parser.add_argument("--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second")
     parser.add_argument("--cache", type=int, default=DEFAULT_CACHE_SIZE, help="Approximately how many frames to cache")
     parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="number of threads to use for reading file")
+    parser.add_argument("--keys", type=parse_keys, default=default_config["keys"], help="Mapping from event name to key")
 
-    return parser.parse_args()
+    parsed = parser.parse_args()
+
+    if parsed.config:
+        config = toml.load(config_path)
+
+        for key in ("fps", "cache", "threads"):
+            if getattr(parsed, key) is None:
+                setattr(
+                    parsed, key,
+                    config.get("settings", dict()).get(key, default_config["settings"][key])
+                )
+        config.get("keys", dict()).update(parsed.keys or default_config["keys"])
+        parsed.keys = config["keys"]
+
+    return parsed
 
 
-def main(fpath, out_path=None, cache_size=DEFAULT_CACHE_SIZE, max_fps=DEFAULT_FPS, threads=DEFAULT_THREADS):
+def main(
+    fpath,
+    out_path=None,
+    cache_size=DEFAULT_CACHE_SIZE,
+    max_fps=DEFAULT_FPS,
+    threads=DEFAULT_THREADS,
+    keys=default_config["keys"]
+):
     spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
-    with Window(spooler, max_fps) as w:
-        output = w.loop()
-
-    if out_path:
-        output.to_csv(out_path)
-    else:
-        print(','.join(output.columns))
-        for row in output.itertuples(index=False):
-            print(','.join(row))
+    with Window(spooler, max_fps, keys, out_path) as w:
+        w.loop()
+        w.save()
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     parsed_args = parse_args()
-    main(parsed_args.infile, parsed_args.outfile, parsed_args.cache, parsed_args.fps, parsed_args.threads)
+    main(
+        parsed_args.infile,
+        parsed_args.outfile,
+        parsed_args.cache,
+        parsed_args.fps,
+        parsed_args.threads,
+        parsed_args.keys
+    )

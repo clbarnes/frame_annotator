@@ -16,6 +16,7 @@ setup(
         "pandas",
         "numpy",
         "scikit-image",
+        "toml",
     ],
     long_description=long_description,
     long_description_content_type='text/markdown',

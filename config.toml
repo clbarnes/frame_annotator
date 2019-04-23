@@ -1,0 +1,10 @@
+[settings]
+fps = 30
+cache = 500
+threads = 3
+
+[keys]
+#r = "right_turn"
+#l = "left_turn"
+#f = "forward"
+#b = "back"
