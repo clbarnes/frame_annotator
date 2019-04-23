@@ -18,6 +18,7 @@ setup(
         "scikit-image",
         "toml",
     ],
+    include_package_data=True,
     long_description=long_description,
     long_description_content_type='text/markdown',
     python_requires=">=3.7",

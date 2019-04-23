@@ -552,21 +552,27 @@ def parse_keys(s):
     d = dict()
     for pair in s.split(','):
         for event, key in pair.split('='):
+            event = event.strip()
+            key = key.strip().lower()
             if len(key) > 1:
                 raise ValueError("keys must be 1 character long")
-            d[key.lower()] = event
+            d[key] = event
     return d
 
 
 def parse_args():
     parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawTextHelpFormatter)
-    parser.add_argument("infile", help="Path to multipage TIFF file to read")
+    parser.add_argument("--write_config", help="Write back the complete config to a file at this path")
     parser.add_argument("--outfile", "-o", help="Path to CSV for loading/saving")
     parser.add_argument("--config", help="Path to TOML file for config")
     parser.add_argument("--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second")
     parser.add_argument("--cache", type=int, default=DEFAULT_CACHE_SIZE, help="Approximately how many frames to cache")
     parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="number of threads to use for reading file")
-    parser.add_argument("--keys", type=parse_keys, default=default_config["keys"], help="Mapping from event name to key")
+    parser.add_argument(
+        "--keys", type=parse_keys, default=default_config["keys"],
+        help='Mapping from event name to key, in the format "forward=w,left=a,back=s,right=d"'
+    )
+    parser.add_argument("infile", nargs='?', default=None, help="Path to multipage TIFF file to read")
 
     parsed = parser.parse_args()
 
@@ -579,8 +585,21 @@ def parse_args():
                     parsed, key,
                     config.get("settings", dict()).get(key, default_config["settings"][key])
                 )
-        config.get("keys", dict()).update(parsed.keys or default_config["keys"])
+        config.get("keys", dict()).update(parsed.keys or default_config.getattr("keys"))
         parsed.keys = config["keys"]
+
+    if parsed.write_config:
+        d = {
+            "settings": {
+                "fps": parsed.fps,
+                "cache": parsed.cache,
+                "threads": parsed.threads
+            }
+        }
+        if parsed.keys:
+            d["keys"] = parsed.keys
+        with open(parsed.write_config, 'w') as f:
+            toml.dump(d, f)
 
     return parsed
 
@@ -602,11 +621,12 @@ def main(
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     parsed_args = parse_args()
-    main(
-        parsed_args.infile,
-        parsed_args.outfile,
-        parsed_args.cache,
-        parsed_args.fps,
-        parsed_args.threads,
-        parsed_args.keys
-    )
+    if parsed_args.infile:
+        main(
+            parsed_args.infile,
+            parsed_args.outfile,
+            parsed_args.cache,
+            parsed_args.fps,
+            parsed_args.threads,
+            parsed_args.keys
+        )
