@@ -22,9 +22,15 @@ usage: frame_annotator.py [-h] [--write_config WRITE_CONFIG]
 - Press any letter key to mark the onset of an event, and Shift + that letter to mark the end of it
   - Marking the onset and end of an event at the same frame will remove both annotations
 - Press Space to see which events are currently in progress
+- Press Delete to show a prompt asking which in-progress event to delete
+  - You will need to select the console to enter it, then re-select the annotator window
 - Press Enter to see the table of results in the console
 - Press Backspace to see the current frame number and contrast thresholds
 - Ctrl + s to save
+- Ctrl + z to undo
+- Ctrl + r to redo
+- Ctrl + n to show a prompt asking which in-progress event to note
+  - You will need to select the console to enter it, then re-select the annotator window
 - Ctrl + h to show this message
 
 positional arguments:
@@ -41,4 +47,5 @@ optional arguments:
   --cache CACHE         Approximately how many frames to cache
   --threads THREADS     number of threads to use for reading file
   --keys KEYS           Mapping from event name to key, in the format "forward=w,left=a,back=s,right=d"
+  
 ```

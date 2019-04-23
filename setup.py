@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+import setuptools
 from pathlib import Path
 
 here = Path(__file__).absolute().parent
@@ -6,18 +6,21 @@ here = Path(__file__).absolute().parent
 with open(here / 'README.md') as f:
     long_description = f.read()
 
-setup(
-    name='frame_annotator',
+name = "frame_annotator"
+requirements = [
+    "imageio",
+    "pygame",
+    "pandas",
+    "numpy",
+    "scikit-image",
+    "toml",
+]
+
+setuptools.setup(
+    name=name,
     version='0.1.0',
-    packages=find_packages(),
-    install_requires=[
-        "imageio",
-        "pygame",
-        "pandas",
-        "numpy",
-        "scikit-image",
-        "toml",
-    ],
+    packages=setuptools.find_packages(),
+    install_requires=requirements,
     include_package_data=True,
     long_description=long_description,
     long_description_content_type='text/markdown',

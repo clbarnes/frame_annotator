@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 import itertools
 import sys
+import os
 from argparse import ArgumentParser, RawTextHelpFormatter
 from collections import deque, defaultdict
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
-from functools import lru_cache
+from enum import Enum, auto
+from functools import lru_cache, wraps
 from pathlib import Path
 from queue import Queue
 from threading import Lock
-from typing import Deque, Tuple, Optional
+from typing import Deque, Tuple, Optional, NamedTuple, List, DefaultDict, Dict
 import logging
 from string import ascii_letters
 import contextlib
@@ -42,9 +44,15 @@ DESCRIPTION = """
 - Press any letter key to mark the onset of an event, and Shift + that letter to mark the end of it
   - Marking the onset and end of an event at the same frame will remove both annotations
 - Press Space to see which events are currently in progress
+- Press Delete to show a prompt asking which in-progress event to delete
+  - You will need to select the console to enter it, then re-select the annotator window
 - Press Enter to see the table of results in the console
 - Press Backspace to see the current frame number and contrast thresholds
 - Ctrl + s to save
+- Ctrl + z to undo
+- Ctrl + r to redo
+- Ctrl + n to show a prompt asking which in-progress event to note
+  - You will need to select the console to enter it, then re-select the annotator window
 - Ctrl + h to show this message
 """.rstrip()
 
@@ -271,19 +279,56 @@ class FrameSpooler:
 
 
 def sort_key(start_stop_event):
-    start, stop, event = start_stop_event
+    start, stop, key, event, note = start_stop_event
     if start is None:
         start = -np.inf
     if stop is None:
         stop = np.inf
 
-    return start, stop, event
+    return start, stop, key, event, note
+
+
+class Action(Enum):
+    INSERT = "INSERT"
+    DELETE = "DELETE"
+
+    def invert(self):
+        if self == Action.INSERT:
+            return Action.DELETE
+        else:
+            return Action.INSERT
+
+    def __str__(self):
+        return self.value
+
+
+class LoggedEvent(NamedTuple):
+    action: Action
+    key: str
+    frame: int
+    note: str = ''
+
+    def invert(self):
+        return LoggedEvent(self.action.invert(), self.key, self.frame, self.note)
+
+    def __str__(self):
+        return "{} {} @ {} ({})".format(*self)
+
+    def copy(self, **kwargs):
+        d = self._asdict()
+        d.update(kwargs)
+        return LoggedEvent(**d)
 
 
 class EventLogger:
     def __init__(self, key_mapping=None):
-        self.key_mapping = key_mapping or dict()
-        self.events = defaultdict(set)
+        self.logger = logger.getChild(type(self).__name__)
+
+        self.key_mapping: Dict[str, str] = key_mapping or dict()
+        self.events: DefaultDict[str, Dict[int, str]] = defaultdict(dict)
+
+        self.past: List[LoggedEvent] = []
+        self.future: List[LoggedEvent] = []
 
     def name(self, key):
         key = key.lower()
@@ -300,32 +345,90 @@ class EventLogger:
         for k in self.keys():
             yield k, self.events[k.upper()]
 
+    def _do(self, to_do: LoggedEvent):
+        if to_do.action == Action.INSERT:
+            return self._insert(to_do)
+        else:
+            return self._delete(to_do)
+
+    def _insert(self, to_insert: LoggedEvent) -> LoggedEvent:
+        note = to_insert.note or self.events[to_insert.key].get(to_insert.frame, '')
+        to_insert.copy(action=Action.INSERT, note=note)
+        self.events[to_insert.key][to_insert.frame] = note
+        return to_insert
+
+    def insert(self, key: str, frame: int, note=''):
+        swapped = key.swapcase()
+        if frame in self.events[swapped]:
+            done = self.delete(swapped, frame)
+        else:
+            done = self._insert(LoggedEvent(Action.INSERT, key, frame, note))
+            self.past.append(done)
+            self.future.clear()
+        self.logger.info("Logged %s", done)
+        return done
+
+    def _delete(self, to_do):
+        if to_do.frame is None:
+            return None
+        note = self.events[to_do.key].pop(to_do.frame, None)
+        if note is None:
+            return None
+        else:
+            return to_do.copy(action=Action.DELETE, note=note)
+
     def delete(self, key, frame):
-        self.events[key].discard(frame)
+        done = self._delete(LoggedEvent(action=Action.DELETE, key=key, frame=frame))
 
-    def log(self, key, frame):
-        self.delete(key.swapcase(), frame)
-        self.events[key].add(frame)
+        if done is None:
+            return None
+        else:
+            self.future.clear()
+            self.past.append(done)
+            return done
 
-    def is_active(self, key, frame):
+    def undo(self):
+        if not self.past:
+            self.logger.info("Nothing to undo")
+            return None
+        to_undo = self.past.pop()
+        done = self._do(to_undo.invert())
+        self.future.append(done)
+
+        self.logger.info("Undid %s", to_undo)
+
+    def redo(self):
+        if not self.future:
+            self.logger.info("Nothing to redo")
+            return None
+        to_do = self.future.pop().invert()
+        done = self._do(to_do)
+        self.past.append(done)
+
+        self.logger.info("Redid %s", done)
+
+    def is_active(self, key, frame) -> Optional[Tuple[Optional[int], Optional[int]]]:
+        """return start and stop indices, or None"""
         for start, stop in self.start_stop_pairs(key):
             if start is None:
-                return stop > frame
+                if stop > frame:
+                    return start, stop
             elif stop is None:
-                return start <= frame
-
-            if start <= frame:
+                if start <= frame:
+                    return start, stop
+            elif start <= frame:
                 if frame < stop:
-                    return True
+                    return start, stop
             else:
-                break
+                return None
 
-        return False
+        return None
 
     def get_active(self, frame):
         for k in self.keys():
-            if self.is_active(k, frame):
-                yield k
+            startstop = self.is_active(k, frame)
+            if startstop:
+                yield k, startstop
 
     def start_stop_pairs(self, key):
         starts = self.events[key.lower()]
@@ -350,7 +453,7 @@ class EventLogger:
             is_active = first_stop < first_start
 
         last_start = None
-        for f in range(max(starts | stops) + 1):
+        for f in range(max(itertools.chain(starts.keys(), stops.keys())) + 1):
             if f in stops and is_active:
                 yield last_start, f
                 is_active = False
@@ -365,11 +468,11 @@ class EventLogger:
         rows = []
         for key in self.keys():
             for start, stop in self.start_stop_pairs(key):
-                rows.append((start, stop, key, self.name(key)))
+                rows.append((start, stop, key, self.name(key), self.events[key][start]))
 
         return pd.DataFrame(
             sorted(rows, key=sort_key),
-            columns=["start", "stop", "key", "event"],
+            columns=["start", "stop", "key", "event", "note"],
             dtype=object
         )
 
@@ -378,22 +481,24 @@ class EventLogger:
             print(str(self))
         else:
             df = self.to_df()
-            df.to_csv(fpath, **kwargs)
+            df_kwargs = {"index": False}
+            df_kwargs.update(kwargs)
+            df.to_csv(fpath, **df_kwargs)
 
     def __str__(self):
         output = self.to_df()
         rows = [','.join(output.columns)]
         for row in output.itertuples(index=False):
-            rows.append(','.join(row))
+            rows.append(','.join(str(item) for item in row))
         return '\n'.join(rows)
 
     @classmethod
     def from_df(cls, df: pd.DataFrame, key_mapping=None):
         el = EventLogger()
-        for start, stop, key, event in df.itertuples(index=False):
+        for start, stop, key, event, note in df.itertuples(index=False):
             el.key_mapping[key] = event
-            el.events[event] = start
-            el.events[event.upper()] = stop
+            el.events[key][start] = note
+            el.events[key.upper()][stop] = ''
 
         if key_mapping is not None:
             for k, v in key_mapping.items():
@@ -425,7 +530,7 @@ class Window:
         self.screen.blit(self.im_surf, (0, 0))
         pygame.display.update()
 
-        self.events = EventLogger.from_csv(out_path, key_mapping) if out_path else EventLogger(key_mapping)
+        self.events = EventLogger.from_csv(out_path, key_mapping) if out_path and os.path.exists(out_path) else EventLogger(key_mapping)
         self.out_path = out_path
 
     def step(self, step=0, force_update=False):
@@ -456,30 +561,37 @@ class Window:
                 return None, False
             if event.type == pygame.KEYDOWN:
                 if event.mod & pygame.KMOD_CTRL:
-                    if event.key == pygame.K_RIGHT:
+                    if event.key == pygame.K_RIGHT:  # step right
                         return 1, True
-                    elif event.key == pygame.K_LEFT:
+                    elif event.key == pygame.K_LEFT:  # step left
                         return -1, True
-                    elif event.key == pygame.K_s:
+                    elif event.key == pygame.K_s:  # save
                         self.save()
-                    elif event.key == pygame.K_h:
+                    elif event.key == pygame.K_h:  # help
                         self.print(DESCRIPTION)
-                elif event.unicode in LETTERS:
-                    self.events.log(event.unicode, self.spooler.current_idx)
-                elif event.key == pygame.K_RETURN:
+                    elif event.key == pygame.K_z:  # undo
+                        self.events.undo()
+                    elif event.key == pygame.K_r:  # redo
+                        self.events.redo()
+                    elif event.key == pygame.K_n:  # note
+                        self._handle_note()
+                elif event.unicode in LETTERS:  # log event
+                    self.events.insert(event.unicode, self.spooler.current_idx)
+                elif event.key == pygame.K_RETURN:  # show results
                     df = self.results()
                     self.print(df)
-                elif event.key == pygame.K_SPACE:
-                    self.print(f"Active events @ frame {self.spooler.current_idx}:\n\t{sorted(self.active_events())}")
-                elif event.key == pygame.K_BACKSPACE:
+                elif event.key == pygame.K_SPACE:  # show active events
+                    self.print(f"Active events @ frame {self.spooler.current_idx}:\n\t{self.get_actives_str()}")
+                elif event.key == pygame.K_BACKSPACE:  # show frame info
                     self.print(
                         f"Frame {self.spooler.current_idx}, "
                         f"contrast = ({self.spooler.contrast_lower / 255:.02f}, "
                         f"{self.spooler.contrast_upper / 255:.02f})"
                     )
-            elif event.type == pygame.KEYUP:
-                if event.key in (pygame.K_UP, pygame.K_DOWN):
-                    self.spooler.renew_cache()
+                elif event.key == pygame.K_DELETE:  # delete a current event
+                    self._handle_delete()
+            elif event.type == pygame.KEYUP and event.key in (pygame.K_UP, pygame.K_DOWN):
+                self.spooler.renew_cache()
         else:
             pressed = pygame.key.get_pressed()
             if pressed[pygame.K_LCTRL]:
@@ -494,6 +606,46 @@ class Window:
                 return 0, True
 
         return 0, False
+
+    @contextlib.contextmanager
+    def _handle_event_in_progress(self, msg) -> Optional[Tuple[str, Tuple[int, int]]]:
+        actives = sorted(self.active_events())
+        actives_str = '\n\t'.join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
+        user_val = self.input(
+            f"{msg} (press key and then enter; empty for none)\n\t{actives_str}\n> "
+        )
+        if user_val:
+            actives_d = dict(actives)
+            key = user_val.lower()
+            if key in actives_d:
+                yield key, actives_d[key]
+            else:
+                yield None
+                self.print(f"Event '{key}' not in progress")
+        else:
+            yield None
+
+    def _handle_note(self):
+        with self._handle_event_in_progress("Note for which event?") as k_startstop:
+            if k_startstop:
+                key, (start, stop) = k_startstop
+                note = self.input("Enter note: ")
+                self.events.insert(key, start or 0, note)
+
+    def _handle_delete(self):
+        with self._handle_event_in_progress("Delete which event?") as k_startstop:
+            if k_startstop:
+                key, (start, stop) = k_startstop
+                self.events.delete(key, start)
+                self.events.delete(key.upper(), stop)
+
+    def get_actives_str(self):
+        actives = sorted(self.active_events())
+        return '\n\t'.join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
+
+    def input(self, msg):
+        self.print(msg, end='')
+        return input().strip()
 
     def _handle_contrast(self, pressed):
         mods = pygame.key.get_mods()
@@ -511,6 +663,7 @@ class Window:
             return True
         return False
 
+    @wraps(print)
     def print(self, *args, **kwargs):
         print_kwargs = {"file": sys.stderr, "flush": True}
         print_kwargs.update(**kwargs)
@@ -585,7 +738,7 @@ def parse_args():
                     parsed, key,
                     config.get("settings", dict()).get(key, default_config["settings"][key])
                 )
-        config.get("keys", dict()).update(parsed.keys or default_config.getattr("keys"))
+        config.get("keys", dict()).update(parsed.keys or default_config.get("keys", dict()))
         parsed.keys = config["keys"]
 
     if parsed.write_config:
