@@ -762,7 +762,7 @@ class Window:
 def parse_keys(s):
     d = dict()
     for pair in s.split(','):
-        for event, key in pair.split('='):
+        for key, event in pair.split('='):
             event = event.strip()
             key = key.strip().lower()
             if len(key) > 1:
@@ -773,17 +773,29 @@ def parse_keys(s):
 
 def parse_args():
     parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawTextHelpFormatter)
-    parser.add_argument("--write_config", help="Write back the complete config to a file at this path")
-    parser.add_argument("--outfile", "-o", help="Path to CSV for loading/saving")
+    parser.add_argument("--write_config", help="Write back the complete config to a file at this path, then exit")
+    parser.add_argument(
+        "--outfile", "-o", help="Path to CSV for loading/saving. "
+                                "If no path is selected when you save, a file dialog will open."
+    )
     parser.add_argument("--config", help="Path to TOML file for config")
     parser.add_argument("--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second")
-    parser.add_argument("--cache", type=int, default=DEFAULT_CACHE_SIZE, help="Approximately how many frames to cache")
-    parser.add_argument("--threads", type=int, default=DEFAULT_THREADS, help="number of threads to use for reading file")
+    parser.add_argument(
+        "--cache", type=int, default=DEFAULT_CACHE_SIZE,
+        help="Approximately how many frames to cache (increase if reading over a network and you have lots of RAM)"
+    )
+    parser.add_argument(
+        "--threads", type=int, default=DEFAULT_THREADS,
+        help="number of threads to use for reading file (increase if reading over a network)"
+    )
     parser.add_argument(
         "--keys", type=parse_keys, default=default_config["keys"],
-        help='Mapping from event name to key, in the format "forward=w,left=a,back=s,right=d"'
+        help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"'
     )
-    parser.add_argument("infile", nargs='?', default=None, help="Path to multipage TIFF file to read")
+    parser.add_argument(
+        "infile", nargs='?', default=None,
+        help="Path to multipage TIFF file to read. If no path is given, a file dialog will open."
+    )
 
     parsed = parser.parse_args()
 
