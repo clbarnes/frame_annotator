@@ -6,15 +6,17 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 from collections import deque, defaultdict
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
-from enum import Enum, auto
+from enum import Enum
 from functools import lru_cache, wraps
 from pathlib import Path
 from queue import Queue
 from threading import Lock
+from tkinter import filedialog
 from typing import Deque, Tuple, Optional, NamedTuple, List, DefaultDict, Dict
 import logging
 from string import ascii_letters
 import contextlib
+import tkinter as tk
 
 import pandas as pd
 import imageio
@@ -59,6 +61,9 @@ DESCRIPTION = """
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 LETTERS = set(ascii_letters)
+
+root_tk = tk.Tk()
+root_tk.withdraw()
 
 
 class FrameAccessor:
@@ -480,12 +485,14 @@ class EventLogger:
 
     def save(self, fpath=None, **kwargs):
         if fpath is None:
+            self.logger.info("Printing to stdout")
             print(str(self))
         else:
             df = self.to_df()
             df_kwargs = {"index": False}
             df_kwargs.update(kwargs)
             df.to_csv(fpath, **df_kwargs)
+            self.logger.info("Saved to %s", fpath)
 
     def __str__(self):
         output = self.to_df()
@@ -713,8 +720,18 @@ class Window:
     def results(self):
         return self.events.to_df()
 
-    def save(self, fpath=None):
-        self.events.save(fpath or self.out_path)
+    def save(self, fpath=None, ask=True):
+        fpath = fpath or self.out_path
+        if ask and not fpath:
+            fpath = filedialog.asksaveasfilename(filetypes=(
+                ("CSV files", "*.csv"),
+                ("All files", "*.*"),
+            ))
+
+        if not isinstance(fpath, os.PathLike):
+            fpath = None
+
+        self.events.save(fpath)
 
     def draw_array(self, arr):
         pygame.surfarray.blit_array(self.im_surf, arr.T)
@@ -771,6 +788,7 @@ def parse_args():
     parsed = parser.parse_args()
 
     if parsed.config:
+        logger.info("Loading config file from %s", parsed.config)
         config = toml.load(config_path)
 
         for key in ("fps", "cache", "threads"):
@@ -783,6 +801,7 @@ def parse_args():
         parsed.keys = config["keys"]
 
     if parsed.write_config:
+        logger.info("Writing config file to %s and exiting", parsed.write_config)
         d = {
             "settings": {
                 "fps": parsed.fps,
@@ -794,6 +813,7 @@ def parse_args():
             d["keys"] = parsed.keys
         with open(parsed.write_config, 'w') as f:
             toml.dump(d, f)
+        sys.exit(0)
 
     return parsed
 
@@ -806,6 +826,14 @@ def main(
     threads=DEFAULT_THREADS,
     keys=default_config["keys"]
 ):
+    if not fpath:
+        fpath = filedialog.askopenfilename(filetypes=(
+            ("TIFF files", "*.tif *.tiff"),
+            ("All files", "*.*")
+        ))
+        if not isinstance(fpath, os.PathLike):
+            logger.warning("No path given, exiting")
+            sys.exit(0)
     spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
     with Window(spooler, max_fps, keys, out_path) as w:
         w.loop()
@@ -815,12 +843,11 @@ def main(
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
     parsed_args = parse_args()
-    if parsed_args.infile:
-        main(
-            parsed_args.infile,
-            parsed_args.outfile,
-            parsed_args.cache,
-            parsed_args.fps,
-            parsed_args.threads,
-            parsed_args.keys
-        )
+    main(
+        parsed_args.infile,
+        parsed_args.outfile,
+        parsed_args.cache,
+        parsed_args.fps,
+        parsed_args.threads,
+        parsed_args.keys
+    )
