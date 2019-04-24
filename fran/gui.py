@@ -262,7 +262,7 @@ class Window:
                 filetypes=(("CSV files", "*.csv"), ("All files", "*.*"))
             )
 
-        if not isinstance(fpath, os.PathLike):
+        if not fpath:
             fpath = None
 
         self.events.save(fpath)
@@ -308,7 +308,7 @@ def run(
         fpath = filedialog.askopenfilename(
             filetypes=(("TIFF files", "*.tif *.tiff"), ("All files", "*.*"))
         )
-        if not isinstance(fpath, os.PathLike):
+        if not fpath:
             logger.warning("No path given, exiting")
             return 0
     spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
