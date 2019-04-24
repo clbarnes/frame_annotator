@@ -1,8 +1,6 @@
 # FrAn: FRame ANnotation
 
-FRame ANnotation.
-
-For watching a video in multipage TIFF format and labelling frames where events start or end.
+Watch a video in multipage TIFF format and label frames where events start or end.
 
 ## Installation
 
@@ -78,23 +76,23 @@ CTRL + h to show this message
 
 ```bash
 # run with default settings: a file dialog will ask where your TIFF file is and where to save the CSV
-frame_annotator.py
+fran
 
 # run with 5 image-reading threads (more than the default 3)
 # and a 1000-frame cache (more than the default 500)
-frame_annotator.py --threads 5 --cache 1000
+fran --threads 5 --cache 1000
 
 # copy the default config to a file, which you can edit
-frame_annotator.py --write_config my_default_config.toml
+fran --write_config my_default_config.toml
 
 # run with a given config file
-frame_annotator.py --config my_config.toml
+fran --config my_config.toml
 
 # give the input and output files to avoid file dialogs
-frame_annotator.py my_image_file.tif --outfile my_results.csv
+fran my_image_file.tif --outfile my_results.csv
 
 # flip the image in x and then rotate counterclockwise by 45 degrees
-frame_annotator.py my_image_file.tif --flipx --rotate 45
+fran my_image_file.tif --flipx --rotate 45
 
 ```
 
