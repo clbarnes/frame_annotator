@@ -28,9 +28,9 @@ optional arguments:
   --outfile OUTFILE, -o OUTFILE
                         Path to CSV for loading/saving. If no path is selected when you save, a file dialog will open.
   --config CONFIG       Path to TOML file for config
-  --fps FPS             Maximum frames per second
-  --cache CACHE         Approximately how many frames to cache (increase if reading over a network and you have lots of RAM)
-  --threads THREADS     number of threads to use for reading file (increase if reading over a network)
+  --fps FPS             Maximum frames per second; default 30
+  --cache CACHE         Approximately how many frames to cache (increase if reading over a network and you have lots of RAM); default 500
+  --threads THREADS     number of threads to use for reading file (increase if reading over a network); default 3
   --keys KEYS           Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"
   --flipx               Flip image in x
   --flipy               Flip image in y

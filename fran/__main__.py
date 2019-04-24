@@ -44,19 +44,19 @@ def parse_args():
     )
     parser.add_argument("--config", help="Path to TOML file for config")
     parser.add_argument(
-        "--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second"
+        "--fps", type=float, default=DEFAULT_FPS, help=f"Maximum frames per second; default {DEFAULT_FPS}"
     )
     parser.add_argument(
         "--cache",
         type=int,
         default=DEFAULT_CACHE_SIZE,
-        help="Approximately how many frames to cache (increase if reading over a network and you have lots of RAM)",
+        help=f"Approximately how many frames to cache (increase if reading over a network and you have lots of RAM); default {DEFAULT_CACHE_SIZE}",
     )
     parser.add_argument(
         "--threads",
         type=int,
         default=DEFAULT_THREADS,
-        help="number of threads to use for reading file (increase if reading over a network)",
+        help=f"number of threads to use for reading file (increase if reading over a network); default {DEFAULT_THREADS}",
     )
     parser.add_argument(
         "--keys",
