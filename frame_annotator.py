@@ -12,7 +12,7 @@ from pathlib import Path
 from queue import Queue
 from threading import Lock
 from tkinter import filedialog
-from typing import Deque, Tuple, Optional, NamedTuple, List, DefaultDict, Dict
+from typing import Deque, Tuple, Optional, NamedTuple, List, DefaultDict, Dict, Callable
 import logging
 from string import ascii_letters
 import contextlib
@@ -39,23 +39,41 @@ DEFAULT_CACHE_SIZE = default_config["settings"]["cache"]
 DEFAULT_FPS = default_config["settings"]["fps"]
 DEFAULT_THREADS = default_config["settings"]["threads"]
 
-DESCRIPTION = """
-- Hold right or left to play the video at a reasonable (and configurable) FPS
-- Hold Shift + arrow to attempt to play the video at 10x speed
-- Press Ctrl + arrow to step through one frame at a time
-- Press any letter key to mark the onset of an event, and Shift + that letter to mark the end of it
-  - Marking the onset and end of an event at the same frame will remove both annotations
-- Press Space to see which events are currently in progress
-- Press Delete to show a prompt asking which in-progress event to delete
-  - You will need to select the console to enter it, then re-select the annotator window
-- Press Enter to see the table of results in the console
-- Press Backspace to see the current frame number and contrast thresholds
-- Ctrl + s to save
-- Ctrl + z to undo
-- Ctrl + r to redo
-- Ctrl + n to show a prompt asking which in-progress event to note
-  - You will need to select the console to enter it, then re-select the annotator window
-- Ctrl + h to show this message
+DEFAULT_FLIPX = default_config["transform"]["flipx"]
+DEFAULT_FLIPY = default_config["transform"]["flipy"]
+DEFAULT_ROTATE = default_config["transform"]["rotate"]
+
+CONTROLS = """
+Playback
+========
+LEFT and RIGHT arrows play the video in that direction at the configured FPS.
+Hold SHIFT + direction to play at 10x speed.
+Hold CTRL + direction to step through one frame at a time.
+
+Events
+======
+LETTER keys mark the start of an event associated with that letter.
+SHIFT + LETTER marks the end of the event.
+Events can overlap.
+Delete an event initiation by terminating it at the same frame, and vice versa.
+
+Status
+======
+SPACE shows in-progress events
+RETURN shows the current result table in the console
+BACKSPACE shows the current frame number and contrast thresholds in the interval [0, 1]
+
+Prompts
+=======
+DELETE shows a prompt asking which in-progress event to delete
+CTRL + n shows a prompt asking which in-progress event to add a note to, and the note
+
+Other
+=====
+CTRL + s to save
+CTRL + z to undo
+CTRL + r to redo
+CTRL + h to show this message
 """.rstrip()
 
 BLACK = (0, 0, 0)
@@ -549,8 +567,15 @@ def fn_or(item, fn=int, default=None):
         return default
 
 
+def noop(arg):
+    return arg
+
+
 class Window:
-    def __init__(self, spooler: FrameSpooler, fps=DEFAULT_FPS, key_mapping=None, out_path=None):
+    def __init__(
+        self, spooler: FrameSpooler, fps=DEFAULT_FPS, key_mapping=None, out_path=None,
+        flipx=False, flipy=False, rotate=0
+    ):
         self.logger = logger.getChild(type(self).__name__)
 
         self.spooler = spooler
@@ -561,16 +586,30 @@ class Window:
         self.clock = pygame.time.Clock()
         first = self.spooler.current.result()
         self.im_surf: pygame.Surface = pygame.surfarray.make_surface(first.T)
-        width, height = self.im_surf.get_size()
-        self.screen = pygame.display.set_mode((width, height))
         self.im_surf.set_palette([(idx, idx, idx) for idx in range(256)])
-        self.screen.blit(self.im_surf, (0, 0))
+        self.transformed_surf: Callable[[], pygame.Surface] = self._make_surf(flipx, flipy, rotate)
+        width, height = self.transformed_surf().get_size()
+        self.screen = pygame.display.set_mode((width, height))
+        self._blit()
         pygame.display.update()
 
         if out_path and os.path.exists(out_path):
             self.events = EventLogger.from_csv(out_path, key_mapping)
         else:
             self.events = EventLogger(key_mapping)
+
+    def _make_surf(self, flipx=False, flipy=False, rotate=0):
+        def fn():
+            surf = self.im_surf
+            if flipx or flipy:
+                surf = pygame.transform.flip(surf, flipx, flipy)
+            if rotate % 360:
+                surf = pygame.transform.rotate(surf, rotate)
+            return surf
+        return fn
+
+    def _blit(self):
+        self.screen.blit(self.transformed_surf(), (0, 0))
 
     def step(self, step=0, force_update=False):
         if step or force_update:
@@ -601,13 +640,15 @@ class Window:
             if event.type == pygame.KEYDOWN:
                 if event.mod & pygame.KMOD_CTRL:
                     if event.key == pygame.K_RIGHT:  # step right
+                        self.show_frame_info()
                         return 1, True
                     elif event.key == pygame.K_LEFT:  # step left
+                        self.show_frame_info()
                         return -1, True
                     elif event.key == pygame.K_s:  # save
                         self.save()
                     elif event.key == pygame.K_h:  # help
-                        self.print(DESCRIPTION)
+                        self.print(CONTROLS)
                     elif event.key == pygame.K_z:  # undo
                         self.events.undo()
                     elif event.key == pygame.K_r:  # redo
@@ -622,14 +663,11 @@ class Window:
                 elif event.key == pygame.K_SPACE:  # show active events
                     self.print(f"Active events @ frame {self.spooler.current_idx}:\n\t{self.get_actives_str()}")
                 elif event.key == pygame.K_BACKSPACE:  # show frame info
-                    self.print(
-                        f"Frame {self.spooler.current_idx}, "
-                        f"contrast = ({self.spooler.contrast_lower / 255:.02f}, "
-                        f"{self.spooler.contrast_upper / 255:.02f})"
-                    )
+                    self.show_frame_info()
                 elif event.key == pygame.K_DELETE:  # delete a current event
                     self._handle_delete()
             elif event.type == pygame.KEYUP and event.key in (pygame.K_UP, pygame.K_DOWN):
+                self.show_frame_info()
                 self.spooler.renew_cache()
         else:
             pressed = pygame.key.get_pressed()
@@ -645,6 +683,13 @@ class Window:
                 return 0, True
 
         return 0, False
+
+    def show_frame_info(self):
+        self.print(
+            f"Frame {self.spooler.current_idx}, "
+            f"contrast = ({self.spooler.contrast_lower / 255:.02f}, "
+            f"{self.spooler.contrast_upper / 255:.02f})"
+        )
 
     @contextlib.contextmanager
     def _handle_event_in_progress(self, msg, auto=True) -> Optional[Tuple[str, Tuple[int, int]]]:
@@ -735,7 +780,7 @@ class Window:
 
     def draw_array(self, arr):
         pygame.surfarray.blit_array(self.im_surf, arr.T)
-        self.screen.blit(self.im_surf, (0, 0))
+        self.screen.blit(self.transformed_surf(), (0, 0))
 
         pygame.display.update()
 
@@ -772,7 +817,10 @@ def parse_keys(s):
 
 
 def parse_args():
-    parser = ArgumentParser(description=DESCRIPTION, formatter_class=RawTextHelpFormatter)
+    parser = ArgumentParser(
+        description="Log video (multipage TIFF) frames in which an event starts or ends",
+        epilog=CONTROLS, formatter_class=RawTextHelpFormatter
+    )
     parser.add_argument("--write_config", help="Write back the complete config to a file at this path, then exit")
     parser.add_argument(
         "--outfile", "-o", help="Path to CSV for loading/saving. "
@@ -791,6 +839,16 @@ def parse_args():
     parser.add_argument(
         "--keys", type=parse_keys, default=default_config["keys"],
         help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"'
+    )
+    parser.add_argument(
+        "--flipx", action="store_true", default=DEFAULT_FLIPX, help="Flip image in x"
+    )
+    parser.add_argument(
+        "--flipy", action="store_true", default=DEFAULT_FLIPY, help="Flip image in y"
+    )
+    parser.add_argument(
+        "--rotate", type=float, default=DEFAULT_ROTATE,
+        help="Rotate image (degrees counterclockwise; applied after flipping)"
     )
     parser.add_argument(
         "infile", nargs='?', default=None,
@@ -819,10 +877,14 @@ def parse_args():
                 "fps": parsed.fps,
                 "cache": parsed.cache,
                 "threads": parsed.threads
-            }
+            },
+            "transform": {
+                "flipx": parsed.flipx,
+                "flipy": parsed.flipy,
+                "rotate": parsed.rotate,
+            },
+            "keys": parsed.keys
         }
-        if parsed.keys:
-            d["keys"] = parsed.keys
         with open(parsed.write_config, 'w') as f:
             toml.dump(d, f)
         sys.exit(0)
@@ -836,7 +898,10 @@ def main(
     cache_size=DEFAULT_CACHE_SIZE,
     max_fps=DEFAULT_FPS,
     threads=DEFAULT_THREADS,
-    keys=default_config["keys"]
+    keys=default_config["keys"],
+    flipx=DEFAULT_FLIPX,
+    flipy=DEFAULT_FLIPY,
+    rotate=DEFAULT_ROTATE,
 ):
     if not fpath:
         fpath = filedialog.askopenfilename(filetypes=(
@@ -847,7 +912,7 @@ def main(
             logger.warning("No path given, exiting")
             sys.exit(0)
     spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
-    with Window(spooler, max_fps, keys, out_path) as w:
+    with Window(spooler, max_fps, keys, out_path, flipx, flipy, rotate) as w:
         w.loop()
         w.save()
 
@@ -861,5 +926,8 @@ if __name__ == '__main__':
         parsed_args.cache,
         parsed_args.fps,
         parsed_args.threads,
-        parsed_args.keys
+        parsed_args.keys,
+        parsed_args.flipx,
+        parsed_args.flipy,
+        parsed_args.rotate,
     )
