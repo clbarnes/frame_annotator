@@ -31,7 +31,8 @@ with contextlib.redirect_stdout(None):
 logger = logging.getLogger(__name__)
 
 here = Path(__file__).absolute()
-project_dir = here.parent
+package_dir = here.parent
+project_dir = package_dir.parent
 config_path = project_dir / "config.toml"
 default_config = toml.load(config_path)
 
