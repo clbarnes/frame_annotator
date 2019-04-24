@@ -68,6 +68,9 @@ Prompts
 DELETE shows a prompt asking which in-progress event to delete
 CTRL + n shows a prompt asking which in-progress event to add a note to, and the note
 
+In order to interact with a prompt, you will need to click on the console and enter your response.
+Then, click on the frame_annotator window to keep annotating.
+
 Other
 =====
 CTRL + s to save

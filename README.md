@@ -11,11 +11,11 @@ pip install git+https://github.com/clbarnes/frame_annotator
 ## Usage
 
 ```help
-usage: frame_annotator.py [-h] [--write_config WRITE_CONFIG]
-                          [--outfile OUTFILE] [--config CONFIG] [--fps FPS]
-                          [--cache CACHE] [--threads THREADS] [--keys KEYS]
-                          [--flipx] [--flipy] [--rotate ROTATE]
-                          [infile]
+usage: frame_annotator [-h] [--write_config WRITE_CONFIG] [--outfile OUTFILE]
+                       [--config CONFIG] [--fps FPS] [--cache CACHE]
+                       [--threads THREADS] [--keys KEYS] [--flipx] [--flipy]
+                       [--rotate ROTATE]
+                       [infile]
 
 Log video (multipage TIFF) frames in which an event starts or ends
 
