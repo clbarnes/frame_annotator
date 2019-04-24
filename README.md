@@ -1,4 +1,6 @@
-# Frame annotator
+# FrAn: FRame ANnotation
+
+FRame ANnotation.
 
 For watching a video in multipage TIFF format and labelling frames where events start or end.
 
@@ -11,11 +13,10 @@ pip install git+https://github.com/clbarnes/frame_annotator
 ## Usage
 
 ```help
-usage: frame_annotator [-h] [--write_config WRITE_CONFIG] [--outfile OUTFILE]
-                       [--config CONFIG] [--fps FPS] [--cache CACHE]
-                       [--threads THREADS] [--keys KEYS] [--flipx] [--flipy]
-                       [--rotate ROTATE]
-                       [infile]
+usage: fran [-h] [--write_config WRITE_CONFIG] [--outfile OUTFILE]
+            [--config CONFIG] [--fps FPS] [--cache CACHE] [--threads THREADS]
+            [--keys KEYS] [--flipx] [--flipy] [--rotate ROTATE]
+            [infile]
 
 Log video (multipage TIFF) frames in which an event starts or ends
 
@@ -61,6 +62,9 @@ Prompts
 DELETE shows a prompt asking which in-progress event to delete
 CTRL + n shows a prompt asking which in-progress event to add a note to, and the note
 
+In order to interact with a prompt, you will need to click on the console and enter your response.
+Then, click on the fran window to keep annotating.
+
 Other
 =====
 CTRL + s to save
@@ -105,7 +109,7 @@ d = "right"
 
 ```
 
-See [the default config file](frame_annotator/config.toml) for the defaults.
+See [the default config file](fran/config.toml) for the defaults.
 
 ## Output
 
