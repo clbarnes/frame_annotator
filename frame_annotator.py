@@ -381,10 +381,12 @@ class EventLogger:
         done = self._delete(LoggedEvent(action=Action.DELETE, key=key, frame=frame))
 
         if done is None:
+            self.logger.info("Nothing to delete")
             return None
         else:
             self.future.clear()
             self.past.append(done)
+            self.logger.info("Logged %s", done)
             return done
 
     def undo(self):
@@ -468,7 +470,7 @@ class EventLogger:
         rows = []
         for key in self.keys():
             for start, stop in self.start_stop_pairs(key):
-                rows.append((start, stop, key, self.name(key), self.events[key][start]))
+                rows.append((start, stop, key, self.name(key), self.events[key].get(start, '')))
 
         return pd.DataFrame(
             sorted(rows, key=sort_key),
@@ -497,8 +499,14 @@ class EventLogger:
         el = EventLogger()
         for start, stop, key, event, note in df.itertuples(index=False):
             el.key_mapping[key] = event
-            el.events[key][start] = note
-            el.events[key.upper()][stop] = ''
+            if start is None:
+                if note:
+                    start = 0
+                    el.events[key][start] = note
+            else:
+                el.events[key][start] = note
+            if stop:
+                el.events[key.upper()][stop] = ''
 
         if key_mapping is not None:
             for k, v in key_mapping.items():
@@ -507,10 +515,31 @@ class EventLogger:
                     el.key_mapping[k] = v
                 elif existing != v:
                     raise ValueError("Given key mapping incompatible with given data")
+        return el
 
     @classmethod
     def from_csv(cls, fpath, key_mapping=None):
-        return cls.from_df(pd.read_csv(fpath), key_mapping)
+        df = pd.read_csv(fpath)
+        df["note"] = [sanitise_note(item) for item in df["note"]]
+        for col in ["start", "stop"]:
+            df[col] = np.array([fn_or(item, int, None) for item in df[col]], dtype=object)
+        return cls.from_df(df, key_mapping)
+
+
+def sanitise_note(item):
+    try:
+        if item.lower() != "nan":
+            return item
+    except AttributeError:
+        pass
+    return ''
+
+
+def fn_or(item, fn=int, default=None):
+    try:
+        return fn(item)
+    except ValueError:
+        return default
 
 
 class Window:
@@ -519,6 +548,7 @@ class Window:
 
         self.spooler = spooler
         self.fps = fps
+        self.out_path = out_path
 
         pygame.init()
         self.clock = pygame.time.Clock()
@@ -530,8 +560,10 @@ class Window:
         self.screen.blit(self.im_surf, (0, 0))
         pygame.display.update()
 
-        self.events = EventLogger.from_csv(out_path, key_mapping) if out_path and os.path.exists(out_path) else EventLogger(key_mapping)
-        self.out_path = out_path
+        if out_path and os.path.exists(out_path):
+            self.events = EventLogger.from_csv(out_path, key_mapping)
+        else:
+            self.events = EventLogger(key_mapping)
 
     def step(self, step=0, force_update=False):
         if step or force_update:
@@ -608,22 +640,31 @@ class Window:
         return 0, False
 
     @contextlib.contextmanager
-    def _handle_event_in_progress(self, msg) -> Optional[Tuple[str, Tuple[int, int]]]:
+    def _handle_event_in_progress(self, msg, auto=True) -> Optional[Tuple[str, Tuple[int, int]]]:
         actives = sorted(self.active_events())
-        actives_str = '\n\t'.join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
-        user_val = self.input(
-            f"{msg} (press key and then enter; empty for none)\n\t{actives_str}\n> "
-        )
-        if user_val:
-            actives_d = dict(actives)
-            key = user_val.lower()
-            if key in actives_d:
-                yield key, actives_d[key]
+        if not actives:
+            self.print("No events in progress")
+            yield None
+        elif len(actives) == 1 and auto:
+            self.print(msg)
+            k, (start, stop) = actives[0]
+            self.print(f"\tAutomatically selecting only event, {k}: {start} -> {stop}")
+            yield k, (start, stop)
+        else:
+            actives_str = '\n\t'.join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
+            user_val = self.input(
+                f"{msg} (press key and then enter; empty for none)\n\t{actives_str}\n> "
+            )
+            if user_val:
+                actives_d = dict(actives)
+                key = user_val.lower()
+                if key in actives_d:
+                    yield key, actives_d[key]
+                else:
+                    yield None
+                    self.print(f"Event '{key}' not in progress")
             else:
                 yield None
-                self.print(f"Event '{key}' not in progress")
-        else:
-            yield None
 
     def _handle_note(self):
         with self._handle_event_in_progress("Note for which event?") as k_startstop:
@@ -633,7 +674,7 @@ class Window:
                 self.events.insert(key, start or 0, note)
 
     def _handle_delete(self):
-        with self._handle_event_in_progress("Delete which event?") as k_startstop:
+        with self._handle_event_in_progress("Delete which event?", False) as k_startstop:
             if k_startstop:
                 key, (start, stop) = k_startstop
                 self.events.delete(key, start)

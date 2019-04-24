@@ -49,3 +49,17 @@ optional arguments:
   --keys KEYS           Mapping from event name to key, in the format "forward=w,left=a,back=s,right=d"
   
 ```
+
+## Output
+
+If `--outfile` is given, saving writes to the file in CSV format.
+Otherwise, it writes to stdout (all other messages are on stderr).
+
+e.g.
+
+```csv
+start,stop,key,event,note
+120,500,f,forward,"this event is a nice event"
+505,530,b,backward,
+650,None,r,right,"this doesn't finish in the video"
+```
