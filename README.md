@@ -105,6 +105,8 @@ d = "right"
 
 ```
 
+See [the default config file](frame_annotator/config.toml) for the defaults.
+
 ## Output
 
 If `--outfile` is given, saving writes to the file in CSV format.

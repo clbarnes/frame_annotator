@@ -21,7 +21,7 @@ setuptools.setup(
     version='0.1.0',
     packages=setuptools.find_packages(),
     install_requires=requirements,
-    include_package_data=True,
+    package_data={"frame_annotator": ["config.toml"]},
     long_description=long_description,
     long_description_content_type='text/markdown',
     python_requires=">=3.7",

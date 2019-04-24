@@ -32,8 +32,7 @@ logger = logging.getLogger(__name__)
 
 here = Path(__file__).absolute()
 package_dir = here.parent
-project_dir = package_dir.parent
-config_path = project_dir / "config.toml"
+config_path = package_dir / "config.toml"
 default_config = toml.load(config_path)
 
 DEFAULT_CACHE_SIZE = default_config["settings"]["cache"]
