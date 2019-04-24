@@ -91,14 +91,16 @@ class FrameAccessor:
 
         self.fpath = fpath
         with self.lock:
-            self.reader = imageio.get_reader(fpath, mode='I', **kwargs)
+            self.reader = imageio.get_reader(fpath, mode="I", **kwargs)
             self.len = self.reader.get_length()
         self.logger.info("Detected %s frames", self.len)
         first = self[0]
         self.frame_shape = first.shape
         self.logger.info("Detected frames of shape %s", self.frame_shape)
         self.dtype = first.dtype
-        self.logger.info("Detected frames of dtype %s (non-uint8 may be slower)", self.dtype)
+        self.logger.info(
+            "Detected frames of dtype %s (non-uint8 may be slower)", self.dtype
+        )
 
     def close(self):
         return self.reader.close()
@@ -142,7 +144,7 @@ class FrameSpooler:
 
         self.half_cache = cache_size // 2
 
-        u8_info = np.iinfo('uint8')
+        u8_info = np.iinfo("uint8")
         self.contrast_min = u8_info.min
         self.contrast_max = u8_info.max
 
@@ -155,8 +157,7 @@ class FrameSpooler:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
 
         self.cache: Deque[Future] = deque(
-            [self.fetch_frame(idx) for idx in range(cache_size)],
-            cache_size
+            [self.fetch_frame(idx) for idx in range(cache_size)], cache_size
         )
 
     @contextlib.contextmanager
@@ -181,7 +182,10 @@ class FrameSpooler:
         self.logger.debug("renewing cache")
         # 0, +1, -1, +2, -2, +3, -3 etc.
         for idx in itertools.chain.from_iterable(
-            zip(range(self.idx_in_cache, len(self.cache)), range(self.idx_in_cache-1, 0, -1))
+            zip(
+                range(self.idx_in_cache, len(self.cache)),
+                range(self.idx_in_cache - 1, 0, -1),
+            )
         ):
             self.cache[idx].cancel()
             self.cache[idx] = self.fetch_frame(self.cache_idx_to_frame_idx(idx))
@@ -202,7 +206,9 @@ class FrameSpooler:
                 changed = True
 
         if changed:
-            self.logger.debug("updating contrast to %s, %s", self.contrast_lower, self.contrast_upper)
+            self.logger.debug(
+                "updating contrast to %s, %s", self.contrast_lower, self.contrast_upper
+            )
             if freeze_cache:
                 self.cache[self.idx_in_cache].cancel()
                 self.cache[self.idx_in_cache] = self.fetch_frame(self.current_idx)
@@ -214,7 +220,7 @@ class FrameSpooler:
         return arr
 
     def from_uint16(self, arr):
-        out = (arr//256).astype('uint8')
+        out = (arr // 256).astype("uint8")
         return out
 
     @property
@@ -278,9 +284,7 @@ class FrameSpooler:
         with self.frames() as frames:
             arr = frames[idx]
 
-        arr = self.apply_contrast(
-            self.converter(arr), contrast_lower, contrast_upper
-        )
+        arr = self.apply_contrast(self.converter(arr), contrast_lower, contrast_upper)
         return arr
 
     def close(self):
@@ -329,7 +333,7 @@ class LoggedEvent(NamedTuple):
     action: Action
     key: str
     frame: int
-    note: str = ''
+    note: str = ""
 
     def invert(self):
         return LoggedEvent(self.action.invert(), self.key, self.frame, self.note)
@@ -375,12 +379,12 @@ class EventLogger:
             return self._delete(to_do)
 
     def _insert(self, to_insert: LoggedEvent) -> LoggedEvent:
-        note = to_insert.note or self.events[to_insert.key].get(to_insert.frame, '')
+        note = to_insert.note or self.events[to_insert.key].get(to_insert.frame, "")
         to_insert.copy(action=Action.INSERT, note=note)
         self.events[to_insert.key][to_insert.frame] = note
         return to_insert
 
-    def insert(self, key: str, frame: int, note=''):
+    def insert(self, key: str, frame: int, note=""):
         swapped = key.swapcase()
         if frame in self.events[swapped]:
             done = self.delete(swapped, frame)
@@ -493,12 +497,14 @@ class EventLogger:
         rows = []
         for key in self.keys():
             for start, stop in self.start_stop_pairs(key):
-                rows.append((start, stop, key, self.name(key), self.events[key].get(start, '')))
+                rows.append(
+                    (start, stop, key, self.name(key), self.events[key].get(start, ""))
+                )
 
         return pd.DataFrame(
             sorted(rows, key=sort_key),
             columns=["start", "stop", "key", "event", "note"],
-            dtype=object
+            dtype=object,
         )
 
     def save(self, fpath=None, **kwargs):
@@ -514,10 +520,10 @@ class EventLogger:
 
     def __str__(self):
         output = self.to_df()
-        rows = [','.join(output.columns)]
+        rows = [",".join(output.columns)]
         for row in output.itertuples(index=False):
-            rows.append(','.join(str(item) for item in row))
-        return '\n'.join(rows)
+            rows.append(",".join(str(item) for item in row))
+        return "\n".join(rows)
 
     @classmethod
     def from_df(cls, df: pd.DataFrame, key_mapping=None):
@@ -531,7 +537,7 @@ class EventLogger:
             else:
                 el.events[key][start] = note
             if stop:
-                el.events[key.upper()][stop] = ''
+                el.events[key.upper()][stop] = ""
 
         if key_mapping is not None:
             for k, v in key_mapping.items():
@@ -547,7 +553,9 @@ class EventLogger:
         df = pd.read_csv(fpath)
         df["note"] = [sanitise_note(item) for item in df["note"]]
         for col in ["start", "stop"]:
-            df[col] = np.array([fn_or(item, int, None) for item in df[col]], dtype=object)
+            df[col] = np.array(
+                [fn_or(item, int, None) for item in df[col]], dtype=object
+            )
         return cls.from_df(df, key_mapping)
 
 
@@ -557,7 +565,7 @@ def sanitise_note(item):
             return item
     except AttributeError:
         pass
-    return ''
+    return ""
 
 
 def fn_or(item, fn=int, default=None):
@@ -573,8 +581,14 @@ def noop(arg):
 
 class Window:
     def __init__(
-        self, spooler: FrameSpooler, fps=DEFAULT_FPS, key_mapping=None, out_path=None,
-        flipx=False, flipy=False, rotate=0
+        self,
+        spooler: FrameSpooler,
+        fps=DEFAULT_FPS,
+        key_mapping=None,
+        out_path=None,
+        flipx=False,
+        flipy=False,
+        rotate=0,
     ):
         self.logger = logger.getChild(type(self).__name__)
 
@@ -587,7 +601,9 @@ class Window:
         first = self.spooler.current.result()
         self.im_surf: pygame.Surface = pygame.surfarray.make_surface(first.T)
         self.im_surf.set_palette([(idx, idx, idx) for idx in range(256)])
-        self.transformed_surf: Callable[[], pygame.Surface] = self._make_surf(flipx, flipy, rotate)
+        self.transformed_surf: Callable[[], pygame.Surface] = self._make_surf(
+            flipx, flipy, rotate
+        )
         width, height = self.transformed_surf().get_size()
         self.screen = pygame.display.set_mode((width, height))
         self._blit()
@@ -606,6 +622,7 @@ class Window:
             if rotate % 360:
                 surf = pygame.transform.rotate(surf, rotate)
             return surf
+
         return fn
 
     def _blit(self):
@@ -661,12 +678,17 @@ class Window:
                     df = self.results()
                     self.print(df)
                 elif event.key == pygame.K_SPACE:  # show active events
-                    self.print(f"Active events @ frame {self.spooler.current_idx}:\n\t{self.get_actives_str()}")
+                    self.print(
+                        f"Active events @ frame {self.spooler.current_idx}:\n\t{self.get_actives_str()}"
+                    )
                 elif event.key == pygame.K_BACKSPACE:  # show frame info
                     self.show_frame_info()
                 elif event.key == pygame.K_DELETE:  # delete a current event
                     self._handle_delete()
-            elif event.type == pygame.KEYUP and event.key in (pygame.K_UP, pygame.K_DOWN):
+            elif event.type == pygame.KEYUP and event.key in (
+                pygame.K_UP,
+                pygame.K_DOWN,
+            ):
                 self.show_frame_info()
                 self.spooler.renew_cache()
         else:
@@ -692,7 +714,9 @@ class Window:
         )
 
     @contextlib.contextmanager
-    def _handle_event_in_progress(self, msg, auto=True) -> Optional[Tuple[str, Tuple[int, int]]]:
+    def _handle_event_in_progress(
+        self, msg, auto=True
+    ) -> Optional[Tuple[str, Tuple[int, int]]]:
         actives = sorted(self.active_events())
         if not actives:
             self.print("No events in progress")
@@ -703,7 +727,9 @@ class Window:
             self.print(f"\tAutomatically selecting only event, {k}: {start} -> {stop}")
             yield k, (start, stop)
         else:
-            actives_str = '\n\t'.join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
+            actives_str = "\n\t".join(
+                f"{k}: {start} -> {stop}" for k, (start, stop) in actives
+            )
             user_val = self.input(
                 f"{msg} (press key and then enter; empty for none)\n\t{actives_str}\n> "
             )
@@ -726,7 +752,9 @@ class Window:
                 self.events.insert(key, start or 0, note)
 
     def _handle_delete(self):
-        with self._handle_event_in_progress("Delete which event?", False) as k_startstop:
+        with self._handle_event_in_progress(
+            "Delete which event?", False
+        ) as k_startstop:
             if k_startstop:
                 key, (start, stop) = k_startstop
                 self.events.delete(key, start)
@@ -734,25 +762,33 @@ class Window:
 
     def get_actives_str(self):
         actives = sorted(self.active_events())
-        return '\n\t'.join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
+        return "\n\t".join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
 
     def input(self, msg):
-        self.print(msg, end='')
+        self.print(msg, end="")
         return input().strip()
 
     def _handle_contrast(self, pressed):
         mods = pygame.key.get_mods()
         if pressed[pygame.K_UP]:
             if mods & pygame.KMOD_SHIFT:
-                self.spooler.update_contrast(upper=self.spooler.contrast_upper + 1, freeze_cache=True)
+                self.spooler.update_contrast(
+                    upper=self.spooler.contrast_upper + 1, freeze_cache=True
+                )
             else:
-                self.spooler.update_contrast(lower=self.spooler.contrast_lower + 1, freeze_cache=True)
+                self.spooler.update_contrast(
+                    lower=self.spooler.contrast_lower + 1, freeze_cache=True
+                )
             return True
         elif pressed[pygame.K_DOWN]:
             if mods & pygame.KMOD_SHIFT:
-                self.spooler.update_contrast(upper=self.spooler.contrast_upper - 1, freeze_cache=True)
+                self.spooler.update_contrast(
+                    upper=self.spooler.contrast_upper - 1, freeze_cache=True
+                )
             else:
-                self.spooler.update_contrast(lower=self.spooler.contrast_lower - 1, freeze_cache=True)
+                self.spooler.update_contrast(
+                    lower=self.spooler.contrast_lower - 1, freeze_cache=True
+                )
             return True
         return False
 
@@ -768,10 +804,9 @@ class Window:
     def save(self, fpath=None, ask=True):
         fpath = fpath or self.out_path
         if ask and not fpath:
-            fpath = filedialog.asksaveasfilename(filetypes=(
-                ("CSV files", "*.csv"),
-                ("All files", "*.*"),
-            ))
+            fpath = filedialog.asksaveasfilename(
+                filetypes=(("CSV files", "*.csv"), ("All files", "*.*"))
+            )
 
         if not isinstance(fpath, os.PathLike):
             fpath = None
@@ -806,8 +841,8 @@ class Window:
 
 def parse_keys(s):
     d = dict()
-    for pair in s.split(','):
-        for key, event in pair.split('='):
+    for pair in s.split(","):
+        for key, event in pair.split("="):
             event = event.strip()
             key = key.strip().lower()
             if len(key) > 1:
@@ -819,26 +854,40 @@ def parse_keys(s):
 def parse_args():
     parser = ArgumentParser(
         description="Log video (multipage TIFF) frames in which an event starts or ends",
-        epilog=CONTROLS, formatter_class=RawTextHelpFormatter
+        epilog=CONTROLS,
+        formatter_class=RawTextHelpFormatter,
     )
-    parser.add_argument("--write_config", help="Write back the complete config to a file at this path, then exit")
     parser.add_argument(
-        "--outfile", "-o", help="Path to CSV for loading/saving. "
-                                "If no path is selected when you save, a file dialog will open."
+        "--write_config",
+        help="Write back the complete config to a file at this path, then exit",
+    )
+    parser.add_argument(
+        "--outfile",
+        "-o",
+        help="Path to CSV for loading/saving. "
+        "If no path is selected when you save, a file dialog will open.",
     )
     parser.add_argument("--config", help="Path to TOML file for config")
-    parser.add_argument("--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second")
     parser.add_argument(
-        "--cache", type=int, default=DEFAULT_CACHE_SIZE,
-        help="Approximately how many frames to cache (increase if reading over a network and you have lots of RAM)"
+        "--fps", type=float, default=DEFAULT_FPS, help="Maximum frames per second"
     )
     parser.add_argument(
-        "--threads", type=int, default=DEFAULT_THREADS,
-        help="number of threads to use for reading file (increase if reading over a network)"
+        "--cache",
+        type=int,
+        default=DEFAULT_CACHE_SIZE,
+        help="Approximately how many frames to cache (increase if reading over a network and you have lots of RAM)",
     )
     parser.add_argument(
-        "--keys", type=parse_keys, default=default_config["keys"],
-        help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"'
+        "--threads",
+        type=int,
+        default=DEFAULT_THREADS,
+        help="number of threads to use for reading file (increase if reading over a network)",
+    )
+    parser.add_argument(
+        "--keys",
+        type=parse_keys,
+        default=default_config["keys"],
+        help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"',
     )
     parser.add_argument(
         "--flipx", action="store_true", default=DEFAULT_FLIPX, help="Flip image in x"
@@ -847,12 +896,16 @@ def parse_args():
         "--flipy", action="store_true", default=DEFAULT_FLIPY, help="Flip image in y"
     )
     parser.add_argument(
-        "--rotate", type=float, default=DEFAULT_ROTATE,
-        help="Rotate image (degrees counterclockwise; applied after flipping)"
+        "--rotate",
+        type=float,
+        default=DEFAULT_ROTATE,
+        help="Rotate image (degrees counterclockwise; applied after flipping)",
     )
     parser.add_argument(
-        "infile", nargs='?', default=None,
-        help="Path to multipage TIFF file to read. If no path is given, a file dialog will open."
+        "infile",
+        nargs="?",
+        default=None,
+        help="Path to multipage TIFF file to read. If no path is given, a file dialog will open.",
     )
 
     parsed = parser.parse_args()
@@ -864,10 +917,15 @@ def parse_args():
         for key in ("fps", "cache", "threads"):
             if getattr(parsed, key) is None:
                 setattr(
-                    parsed, key,
-                    config.get("settings", dict()).get(key, default_config["settings"][key])
+                    parsed,
+                    key,
+                    config.get("settings", dict()).get(
+                        key, default_config["settings"][key]
+                    ),
                 )
-        config.get("keys", dict()).update(parsed.keys or default_config.get("keys", dict()))
+        config.get("keys", dict()).update(
+            parsed.keys or default_config.get("keys", dict())
+        )
         parsed.keys = config["keys"]
 
     if parsed.write_config:
@@ -876,16 +934,16 @@ def parse_args():
             "settings": {
                 "fps": parsed.fps,
                 "cache": parsed.cache,
-                "threads": parsed.threads
+                "threads": parsed.threads,
             },
             "transform": {
                 "flipx": parsed.flipx,
                 "flipy": parsed.flipy,
                 "rotate": parsed.rotate,
             },
-            "keys": parsed.keys
+            "keys": parsed.keys,
         }
-        with open(parsed.write_config, 'w') as f:
+        with open(parsed.write_config, "w") as f:
             toml.dump(d, f)
         sys.exit(0)
 
@@ -904,10 +962,9 @@ def main(
     rotate=DEFAULT_ROTATE,
 ):
     if not fpath:
-        fpath = filedialog.askopenfilename(filetypes=(
-            ("TIFF files", "*.tif *.tiff"),
-            ("All files", "*.*")
-        ))
+        fpath = filedialog.askopenfilename(
+            filetypes=(("TIFF files", "*.tif *.tiff"), ("All files", "*.*"))
+        )
         if not isinstance(fpath, os.PathLike):
             logger.warning("No path given, exiting")
             sys.exit(0)
@@ -917,7 +974,7 @@ def main(
         w.save()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     parsed_args = parse_args()
     main(
