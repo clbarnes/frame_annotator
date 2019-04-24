@@ -951,7 +951,7 @@ def parse_args():
     return parsed
 
 
-def main(
+def run(
     fpath,
     out_path=None,
     cache_size=DEFAULT_CACHE_SIZE,
@@ -968,17 +968,19 @@ def main(
         )
         if not isinstance(fpath, os.PathLike):
             logger.warning("No path given, exiting")
-            sys.exit(0)
+            return 0
     spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
     with Window(spooler, max_fps, keys, out_path, flipx, flipy, rotate) as w:
         w.loop()
         w.save()
 
+    return 0
 
-if __name__ == "__main__":
+
+def main():
     logging.basicConfig(level=logging.DEBUG)
     parsed_args = parse_args()
-    main(
+    return run(
         parsed_args.infile,
         parsed_args.outfile,
         parsed_args.cache,
@@ -989,3 +991,10 @@ if __name__ == "__main__":
         parsed_args.flipy,
         parsed_args.rotate,
     )
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except:
+        sys.exit(1)
