@@ -5,7 +5,7 @@ Watch a video in multipage TIFF format and label frames where events start or en
 ## Installation
 
 ```bash
-pip install git+https://github.com/clbarnes/frame_annotator
+pip install fran
 ```
 
 ## Usage
@@ -69,7 +69,7 @@ CTRL + s to save
 CTRL + z to undo
 CTRL + r to redo
 CTRL + h to show this message
-  
+
 ```
 
 ### Examples

@@ -4,3 +4,6 @@ pandas
 numpy
 scikit-image
 toml
+setuptools
+wheel
+twine
