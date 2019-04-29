@@ -4,10 +4,10 @@ from pathlib import Path
 here = Path(__file__).absolute().parent
 package = here / "fran"
 
-with open(here / 'README.md') as f:
+with open(here / "README.md") as f:
     long_description = f.read()
 
-with open(package / 'version.py') as f:
+with open(package / "version.py") as f:
     exec(f.read())
 
 setuptools.setup(
@@ -24,7 +24,7 @@ setuptools.setup(
     ],
     package_data={"fran": ["config.toml", "controls.txt"]},
     long_description=long_description,
-    long_description_content_type='text/markdown',
+    long_description_content_type="text/markdown",
     python_requires=">=3.7",
     entry_points={
         "console_scripts": [
@@ -32,9 +32,9 @@ setuptools.setup(
             "frame_annotator = fran.__main__:main",
         ]
     },
-    url='https://github.com/clbarnes/frame_annotator',
-    license='MIT',
-    author='Chris L. Barnes',
-    author_email='barnesc@janelia.hhmi.org',
-    description='Annotate frames of a multiTIFF video'
+    url="https://github.com/clbarnes/frame_annotator",
+    license="MIT",
+    author="Chris L. Barnes",
+    author_email="barnesc@janelia.hhmi.org",
+    description="Annotate frames of a multiTIFF video",
 )

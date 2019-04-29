@@ -10,12 +10,15 @@ Written for python 3.7.
 pip install fran
 ```
 
+If you think you may already have a version of `fran` installed, add the `--upgrade` option.
+
 ## Usage
 
 ```help
 usage: fran [-h] [--write_config WRITE_CONFIG] [--outfile OUTFILE]
             [--config CONFIG] [--fps FPS] [--cache CACHE] [--threads THREADS]
             [--keys KEYS] [--flipx] [--flipy] [--rotate ROTATE] [--version]
+            [--verbose]
             [infile]
 
 Log video (multipage TIFF) frames in which an event starts or ends
@@ -41,13 +44,15 @@ optional arguments:
   --flipy, -y           Flip image in y
   --rotate ROTATE, -r ROTATE
                         Rotate image (degrees counterclockwise; applied after flipping)
-  --version, -v         Print the version and then exit
+  --version             Print the version and then exit
+  --verbose, -v         Increase verbosity of logging (can be repeated). One for DEBUG, two for FRAME.
 
 Playback
 ========
 LEFT and RIGHT arrows play the video in that direction at the configured FPS.
 Hold SHIFT + direction to play at 10x speed.
 Hold CTRL + direction to step through one frame at a time.
+(Alternatively, COMMA and PERIOD can be used to step left and right respectively)
 
 Contrast
 ========
@@ -126,7 +131,7 @@ See [the default config file](fran/config.toml) for the defaults.
 1. Install fran (`pip install fran`)
 2. Write a basic config file to your working directory (`fran --write_config my_project/project_config.toml`)
 3. Edit that config file as you like, with the image transform, event names and so on
-4. Start annotating! `fran --config my_project/project_config.toml my_project/my_video.tiff --outfile my_project/results.csv`
+4. Start annotating! `fran my_project/my_video.tiff --config my_project/project_config.toml --outfile my_project/results.csv`
 
 ## Output
 

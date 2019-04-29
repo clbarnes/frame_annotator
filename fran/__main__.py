@@ -17,7 +17,8 @@ from fran.constants import (
     DEFAULT_KEYS,
     config_path,
     default_config,
-    FRAME)
+    FRAME,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,14 @@ def parse_keys(s):
                 raise ValueError("keys must be 1 character long")
             d[key] = event
     return d
+
+
+def setup_logging(verbosity):
+    verbosity = verbosity or 0
+    logging.addLevelName(FRAME, "FRAME")
+    levels = [logging.INFO, logging.DEBUG, FRAME, logging.NOTSET]
+    v_idx = min(verbosity, len(levels) - 1)
+    logging.basicConfig(level=levels[v_idx])
 
 
 def parse_args():
@@ -104,15 +113,13 @@ def parse_args():
         help="Rotate image (degrees counterclockwise; applied after flipping)",
     )
     parser.add_argument(
-        "--version",
-        action="store_true",
-        help="Print the version and then exit"
+        "--version", action="store_true", help="Print the version and then exit"
     )
     parser.add_argument(
         "--verbose",
         "-v",
         action="count",
-        help="Increase verbosity of logging (can be repeated). One for DEBUG, two for FRAME."
+        help="Increase verbosity of logging (can be repeated). One for DEBUG, two for FRAME.",
     )
     parser.add_argument(
         "infile",
@@ -123,9 +130,7 @@ def parse_args():
 
     parsed = parser.parse_args()
 
-    levels = [logging.INFO, logging.DEBUG, FRAME, logging.NOTSET]
-    v_count = max((parsed.verbose or 0), len(levels) - 1)
-    logging.basicConfig(level=levels[v_count])
+    setup_logging(parsed.verbose)
 
     if parsed.version:
         print("fran " + __version__)

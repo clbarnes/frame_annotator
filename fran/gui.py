@@ -19,7 +19,8 @@ from fran.constants import (
     DEFAULT_ROTATE,
     CONTROLS,
     DEFAULT_KEYS,
-    FRAME)
+    FRAME,
+)
 from fran.events import EventLogger
 from fran.frames import FrameSpooler
 
@@ -99,6 +100,16 @@ class Window:
     def active_events(self):
         yield from self.events.get_active(self.spooler.current_idx)
 
+    def _handle_step_right(self):
+        self.logger.log(FRAME, "Step Right detected")
+        self.show_frame_info()
+        return 1, True
+
+    def _handle_step_left(self):
+        self.logger.log(FRAME, "Step Left detected")
+        self.show_frame_info()
+        return -1, True
+
     def handle_events(self) -> Tuple[Optional[int], bool]:
         """
         Hold arrow: 1 in that direction
@@ -118,13 +129,9 @@ class Window:
             if event.type == pygame.KEYDOWN:
                 if event.mod & pygame.KMOD_CTRL:
                     if event.key == pygame.K_RIGHT:  # step right
-                        self.logger.log(FRAME, "Step Right detected")
-                        self.show_frame_info()
-                        return 1, True
+                        return self._handle_step_right()
                     elif event.key == pygame.K_LEFT:  # step left
-                        self.logger.log(FRAME, "Step Left detected")
-                        self.show_frame_info()
-                        return -1, True
+                        return self._handle_step_left()
                     elif event.key == pygame.K_s:  # save
                         self.save()
                     elif event.key == pygame.K_h:  # help
@@ -135,6 +142,10 @@ class Window:
                         self.events.redo()
                     elif event.key == pygame.K_n:  # note
                         self._handle_note()
+                elif event.key == pygame.K_PERIOD:  # aka ">" step right
+                    return self._handle_step_right()
+                elif event.key == pygame.K_COMMA:  # aka "<" step left
+                    return self._handle_step_left()
                 elif event.unicode in LETTERS:  # log event
                     self.events.insert(event.unicode, self.spooler.current_idx)
                 elif event.key == pygame.K_RETURN:  # show results
@@ -151,7 +162,7 @@ class Window:
             elif event.type == pygame.KEYUP and event.key in (
                 pygame.K_UP,
                 pygame.K_DOWN,
-            ):
+            ):  # finished changing contrast
                 self.show_frame_info()
                 self.spooler.renew_cache()
         else:

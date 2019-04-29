@@ -13,6 +13,7 @@ import imageio
 import numpy as np
 from skimage.exposure import rescale_intensity
 
+from fran.constants import DEFAULT_THREADS, DEFAULT_CACHE_SIZE, FRAME
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,13 @@ class FrameAccessor:
 
 
 class FrameSpooler:
-    def __init__(self, fpath, cache_size=100, max_workers=5, **kwargs):
+    def __init__(
+        self,
+        fpath,
+        cache_size=DEFAULT_CACHE_SIZE,
+        max_workers=DEFAULT_THREADS,
+        **kwargs,
+    ):
         self.logger = logger.getChild(type(self).__name__)
 
         frames = FrameAccessor(fpath, **kwargs)
@@ -139,8 +146,11 @@ class FrameSpooler:
                 changed = True
 
         if changed:
-            self.logger.debug(
-                "updating contrast to %s, %s", self.contrast_lower, self.contrast_upper
+            self.logger.log(
+                FRAME,
+                "updating contrast to %s, %s",
+                self.contrast_lower,
+                self.contrast_upper,
             )
             if freeze_cache:
                 self.cache[self.idx_in_cache].cancel()
@@ -180,7 +190,7 @@ class FrameSpooler:
         return self.current
 
     def next(self):
-        if self.current_idx < self.frame_count - 1:
+        if self.current_idx < self.frame_count - 2:
             self.current_idx += 1
             if self.idx_in_cache < self.half_cache:
                 self.idx_in_cache += 1
