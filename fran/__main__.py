@@ -4,11 +4,20 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 import toml
 
+from fran.version import __version__
 from fran.gui import run
 from fran.constants import (
-    CONTROLS, DEFAULT_FPS, DEFAULT_CACHE_SIZE, DEFAULT_THREADS, DEFAULT_FLIPX, DEFAULT_FLIPY, DEFAULT_ROTATE,
+    CONTROLS,
+    DEFAULT_FPS,
+    DEFAULT_CACHE_SIZE,
+    DEFAULT_THREADS,
+    DEFAULT_FLIPX,
+    DEFAULT_FLIPY,
+    DEFAULT_ROTATE,
     DEFAULT_KEYS,
-    config_path, default_config)
+    config_path,
+    default_config,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -29,11 +38,13 @@ def parse_keys(s):
 def parse_args():
     parser = ArgumentParser(
         description="Log video (multipage TIFF) frames in which an event starts or ends",
-        epilog=CONTROLS, prog="fran",
+        epilog=CONTROLS,
+        prog="fran",
         formatter_class=RawTextHelpFormatter,
     )
     parser.add_argument(
         "--write_config",
+        "-w",
         help="Write back the complete config to a file at this path, then exit",
     )
     parser.add_argument(
@@ -42,39 +53,61 @@ def parse_args():
         help="Path to CSV for loading/saving. "
         "If no path is selected when you save, a file dialog will open.",
     )
-    parser.add_argument("--config", help="Path to TOML file for config")
+    parser.add_argument("--config", "-c", help="Path to TOML file for config")
     parser.add_argument(
-        "--fps", type=float, default=DEFAULT_FPS, help=f"Maximum frames per second; default {DEFAULT_FPS}"
+        "--fps",
+        "-f",
+        type=float,
+        default=DEFAULT_FPS,
+        help=f"Maximum frames per second; default {DEFAULT_FPS}",
     )
     parser.add_argument(
         "--cache",
+        "-n",
         type=int,
         default=DEFAULT_CACHE_SIZE,
-        help=f"Approximately how many frames to cache (increase if reading over a network and you have lots of RAM); default {DEFAULT_CACHE_SIZE}",
+        help=f"Number of frames to cache (increase if reading over a network and you have lots of RAM); default {DEFAULT_CACHE_SIZE}",
     )
     parser.add_argument(
         "--threads",
+        "-t",
         type=int,
         default=DEFAULT_THREADS,
         help=f"number of threads to use for reading file (increase if reading over a network); default {DEFAULT_THREADS}",
     )
     parser.add_argument(
         "--keys",
+        "-k",
         type=parse_keys,
         default=DEFAULT_KEYS.copy(),
         help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"',
     )
     parser.add_argument(
-        "--flipx", action="store_true", default=DEFAULT_FLIPX, help="Flip image in x"
+        "--flipx",
+        "-x",
+        action="store_true",
+        default=DEFAULT_FLIPX,
+        help="Flip image in x",
     )
     parser.add_argument(
-        "--flipy", action="store_true", default=DEFAULT_FLIPY, help="Flip image in y"
+        "--flipy",
+        "-y",
+        action="store_true",
+        default=DEFAULT_FLIPY,
+        help="Flip image in y",
     )
     parser.add_argument(
         "--rotate",
+        "-r",
         type=float,
         default=DEFAULT_ROTATE,
         help="Rotate image (degrees counterclockwise; applied after flipping)",
+    )
+    parser.add_argument(
+        "--version",
+        "-v",
+        action="store_true",
+        help="Print the version and then exit"
     )
     parser.add_argument(
         "infile",
@@ -84,6 +117,10 @@ def parse_args():
     )
 
     parsed = parser.parse_args()
+
+    if parsed.version:
+        print("fran " + __version__)
+        sys.exit(0)
 
     if parsed.config:
         logger.info("Loading config file from %s", parsed.config)

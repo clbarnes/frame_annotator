@@ -2,23 +2,27 @@ import setuptools
 from pathlib import Path
 
 here = Path(__file__).absolute().parent
+package = here / "fran"
 
 with open(here / 'README.md') as f:
     long_description = f.read()
 
+with open(package / 'version.py') as f:
+    exec(f.read())
+
 setuptools.setup(
     name="fran",
-    version='0.1.0',
+    version=__version__,
     packages=["fran"],
     install_requires=[
-        "imageio",
-        "pygame",
-        "pandas",
-        "numpy",
-        "scikit-image",
-        "toml",
+        "imageio>=2.5.0",
+        "pygame>=1.9.5",
+        "pandas>=0.24.2",
+        "numpy>=1.16.2",
+        "scikit-image>=0.15.0",
+        "toml>=0.10.0",
     ],
-    package_data={"fran": ["config.toml"]},
+    package_data={"fran": ["config.toml", "controls.txt"]},
     long_description=long_description,
     long_description_content_type='text/markdown',
     python_requires=">=3.7",

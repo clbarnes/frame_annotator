@@ -10,9 +10,14 @@ import contextlib
 import tkinter as tk
 
 from fran.constants import (
-    DEFAULT_CACHE_SIZE, DEFAULT_FPS, DEFAULT_THREADS, DEFAULT_FLIPX,
-    DEFAULT_FLIPY, DEFAULT_ROTATE, CONTROLS,
-    DEFAULT_KEYS
+    DEFAULT_CACHE_SIZE,
+    DEFAULT_FPS,
+    DEFAULT_THREADS,
+    DEFAULT_FLIPX,
+    DEFAULT_FLIPY,
+    DEFAULT_ROTATE,
+    CONTROLS,
+    DEFAULT_KEYS,
 )
 from fran.events import EventLogger
 from fran.frames import FrameSpooler

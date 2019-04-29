@@ -2,6 +2,8 @@
 
 Watch a video in multipage TIFF format and label frames where events start or end.
 
+Written for python 3.7.
+
 ## Installation
 
 ```bash
@@ -13,7 +15,7 @@ pip install fran
 ```help
 usage: fran [-h] [--write_config WRITE_CONFIG] [--outfile OUTFILE]
             [--config CONFIG] [--fps FPS] [--cache CACHE] [--threads THREADS]
-            [--keys KEYS] [--flipx] [--flipy] [--rotate ROTATE]
+            [--keys KEYS] [--flipx] [--flipy] [--rotate ROTATE] [--version]
             [infile]
 
 Log video (multipage TIFF) frames in which an event starts or ends
@@ -23,18 +25,23 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  --write_config WRITE_CONFIG
+  --write_config WRITE_CONFIG, -w WRITE_CONFIG
                         Write back the complete config to a file at this path, then exit
   --outfile OUTFILE, -o OUTFILE
                         Path to CSV for loading/saving. If no path is selected when you save, a file dialog will open.
-  --config CONFIG       Path to TOML file for config
-  --fps FPS             Maximum frames per second; default 30
-  --cache CACHE         Approximately how many frames to cache (increase if reading over a network and you have lots of RAM); default 500
-  --threads THREADS     number of threads to use for reading file (increase if reading over a network); default 3
-  --keys KEYS           Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"
-  --flipx               Flip image in x
-  --flipy               Flip image in y
-  --rotate ROTATE       Rotate image (degrees counterclockwise; applied after flipping)
+  --config CONFIG, -c CONFIG
+                        Path to TOML file for config
+  --fps FPS, -f FPS     Maximum frames per second; default 30
+  --cache CACHE, -n CACHE
+                        Number of frames to cache (increase if reading over a network and you have lots of RAM); default 500
+  --threads THREADS, -t THREADS
+                        number of threads to use for reading file (increase if reading over a network); default 3
+  --keys KEYS, -k KEYS  Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"
+  --flipx, -x           Flip image in x
+  --flipy, -y           Flip image in y
+  --rotate ROTATE, -r ROTATE
+                        Rotate image (degrees counterclockwise; applied after flipping)
+  --version, -v         Print the version and then exit
 
 Playback
 ========
@@ -42,23 +49,29 @@ LEFT and RIGHT arrows play the video in that direction at the configured FPS.
 Hold SHIFT + direction to play at 10x speed.
 Hold CTRL + direction to step through one frame at a time.
 
+Contrast
+========
+Contrast is controlled by rescaling the pixel intensities between a min and max threshold.
+Hold UP/DOWN to change the lower threshold (increasing it blacks out dim pixels).
+Hold SHIFT + UP/DOWN to change the upper threshold (decreasing it whites out bright pixels).
+
 Events
 ======
 LETTER keys mark the start of an event associated with that letter.
 SHIFT + LETTER marks the end of the event.
-Events can overlap.
+Events of different types can overlap.
 Delete an event initiation by terminating it at the same frame, and vice versa.
 
 Status
 ======
-SPACE shows in-progress events
-RETURN shows the current result table in the console
-BACKSPACE shows the current frame number and contrast thresholds in the interval [0, 1]
+SPACE shows in-progress events.
+RETURN shows the current result table in the console.
+BACKSPACE shows the current frame number and contrast thresholds in the interval [0, 1].
 
 Prompts
 =======
-DELETE shows a prompt asking which in-progress event to delete
-CTRL + n shows a prompt asking which in-progress event to add a note to, and the note
+DELETE shows a prompt asking which in-progress event to delete.
+CTRL + n shows a prompt asking which in-progress event to add a note to, and the note.
 
 In order to interact with a prompt, you will need to click on the console and enter your response.
 Then, click on the fran window to keep annotating.
@@ -69,7 +82,6 @@ CTRL + s to save
 CTRL + z to undo
 CTRL + r to redo
 CTRL + h to show this message
-
 ```
 
 ### Examples
@@ -83,7 +95,7 @@ fran
 fran --threads 5 --cache 1000
 
 # copy the default config to a file, which you can edit
-fran --write_config my_default_config.toml
+fran --write_config my_config.toml
 
 # run with a given config file
 fran --config my_config.toml
@@ -109,6 +121,13 @@ d = "right"
 
 See [the default config file](fran/config.toml) for the defaults.
 
+### Example workflow
+
+1. Install fran (`pip install fran`)
+2. Write a basic config file to your working directory (`fran --write_config my_project/project_config.toml`)
+3. Edit that config file as you like, with the image transform, event names and so on
+4. Start annotating! `fran --config my_project/project_config.toml my_project/my_video.tiff --outfile my_project/results.csv`
+
 ## Output
 
 If `--outfile` is given, saving writes to the file in CSV format.
@@ -125,3 +144,9 @@ start,stop,key,event,note
 505,530,b,backward,
 650,None,r,right,"this doesn't finish in the video"
 ```
+
+## N.B.
+
+[MacOS disagrees with pygame](https://bitbucket.org/pygame/pygame/issues/203/window-does-not-get-focus-on-os-x-with)
+ if installed in a virtual environment: 
+ use the system python (if 3.7+ is available) or one installed with homebrew.
