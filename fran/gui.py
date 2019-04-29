@@ -9,6 +9,7 @@ from string import ascii_letters
 import contextlib
 import tkinter as tk
 
+from fran.version import __version__
 from fran.constants import (
     DEFAULT_CACHE_SIZE,
     DEFAULT_FPS,
@@ -18,7 +19,7 @@ from fran.constants import (
     DEFAULT_ROTATE,
     CONTROLS,
     DEFAULT_KEYS,
-)
+    FRAME)
 from fran.events import EventLogger
 from fran.frames import FrameSpooler
 
@@ -112,13 +113,16 @@ class Window:
         while pygame.event.peek():
             event = pygame.event.wait()
             if event.type == pygame.QUIT:
+                self.logger.log(FRAME, "Quit detected")
                 return None, False
             if event.type == pygame.KEYDOWN:
                 if event.mod & pygame.KMOD_CTRL:
                     if event.key == pygame.K_RIGHT:  # step right
+                        self.logger.log(FRAME, "Step Right detected")
                         self.show_frame_info()
                         return 1, True
                     elif event.key == pygame.K_LEFT:  # step left
+                        self.logger.log(FRAME, "Step Left detected")
                         self.show_frame_info()
                         return -1, True
                     elif event.key == pygame.K_s:  # save
@@ -309,6 +313,8 @@ def run(
     flipy=DEFAULT_FLIPY,
     rotate=DEFAULT_ROTATE,
 ):
+    logger.info("Starting fran v" + __version__)
+
     if not fpath:
         fpath = filedialog.askopenfilename(
             filetypes=(("TIFF files", "*.tif *.tiff"), ("All files", "*.*"))

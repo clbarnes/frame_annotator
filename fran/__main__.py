@@ -17,7 +17,7 @@ from fran.constants import (
     DEFAULT_KEYS,
     config_path,
     default_config,
-)
+    FRAME)
 
 
 logger = logging.getLogger(__name__)
@@ -105,9 +105,14 @@ def parse_args():
     )
     parser.add_argument(
         "--version",
-        "-v",
         action="store_true",
         help="Print the version and then exit"
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="count",
+        help="Increase verbosity of logging (can be repeated). One for DEBUG, two for FRAME."
     )
     parser.add_argument(
         "infile",
@@ -117,6 +122,10 @@ def parse_args():
     )
 
     parsed = parser.parse_args()
+
+    levels = [logging.INFO, logging.DEBUG, FRAME, logging.NOTSET]
+    v_count = max((parsed.verbose or 0), len(levels) - 1)
+    logging.basicConfig(level=levels[v_count])
 
     if parsed.version:
         print("fran " + __version__)
@@ -163,7 +172,6 @@ def parse_args():
 
 
 def main():
-    logging.basicConfig(level=logging.DEBUG)
     parsed_args = parse_args()
     return run(
         parsed_args.infile,
