@@ -18,7 +18,7 @@ DEFAULT_KEYS = default_config["keys"]
 
 controls_path: Path = package_dir / "controls.txt"
 
-CONTROLS = controls_path.read_text()
+CONTROLS = controls_path.read_text().strip()
 
 # framewise log level
 FRAME = 5

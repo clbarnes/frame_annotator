@@ -131,7 +131,7 @@ class Window:
                     if event.key == pygame.K_s:  # save
                         self.save()
                     elif event.key == pygame.K_h:  # help
-                        self.print(CONTROLS)
+                        self.print('\n' + CONTROLS + '\n')
                     elif event.key == pygame.K_z:  # undo
                         self.events.undo()
                     elif event.key == pygame.K_r:  # redo
