@@ -15,7 +15,6 @@ from fran.constants import (
     DEFAULT_FLIPY,
     DEFAULT_ROTATE,
     DEFAULT_KEYS,
-    config_path,
     default_config,
     FRAME,
 )
@@ -91,7 +90,7 @@ def parse_args():
         type=parse_keys,
         default=dict(),
         help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right". '
-             'These are additive with those defined in the config',
+        "These are additive with those defined in the config",
     )
     parser.add_argument(
         "--flipx",

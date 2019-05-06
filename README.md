@@ -154,3 +154,15 @@ start,stop,key,event,note
  if installed in a virtual environment: 
  use the system python (if 3.7+ is available) or one installed with homebrew.
  (if 3.7+ is available) or one installed with homebrew.
+
+
+## Contributing
+
+```sh
+# Install development dependencies
+pip install -r requirements.txt
+# Install package in editable mode
+pip install -e .
+# Install pre-commit hooks for lint/formatting
+pre-commit install
+```

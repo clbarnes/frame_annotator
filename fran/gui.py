@@ -32,9 +32,6 @@ logger = logging.getLogger(__name__)
 
 LETTERS = set(ascii_letters)
 
-root_tk = tk.Tk()
-root_tk.withdraw()
-
 
 def noop(arg):
     return arg
@@ -74,6 +71,9 @@ class Window:
             self.events = EventLogger.from_csv(out_path, key_mapping)
         else:
             self.events = EventLogger(key_mapping)
+
+        self.tk_root = tk.Tk()
+        self.tk_root.withdraw()
 
     def _make_surf(self, flipx=False, flipy=False, rotate=0):
         def fn():
@@ -131,7 +131,7 @@ class Window:
                     if event.key == pygame.K_s:  # save
                         self.save()
                     elif event.key == pygame.K_h:  # help
-                        self.print('\n' + CONTROLS + '\n')
+                        self.print("\n" + CONTROLS + "\n")
                     elif event.key == pygame.K_z:  # undo
                         self.events.undo()
                     elif event.key == pygame.K_r:  # redo
@@ -156,7 +156,10 @@ class Window:
                 elif event.key == pygame.K_DELETE:  # delete a current event
                     self._handle_delete()
             elif event.type == pygame.KEYUP:
-                if event.key in (pygame.K_UP, pygame.K_DOWN,):  # finished changing contrast
+                if event.key in (
+                    pygame.K_UP,
+                    pygame.K_DOWN,
+                ):  # finished changing contrast
                     self.show_frame_info()
                     self.spooler.renew_cache()
                 elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
@@ -187,7 +190,7 @@ class Window:
             f"contrast = ({contrast_lower / 255:.02f}, {contrast_upper / 255:.02f})"
         )
 
-    def _select_in_progress_event(self, title='Select event', auto=True):
+    def _select_in_progress_event(self, title="Select event", auto=True):
         self.logger.info("Selecting in-progress event")
         actives = sorted(self.active_events())
         if not actives:
@@ -197,13 +200,15 @@ class Window:
             self.print(f"\tAutomatically selecting only event, {k}: {start} -> {stop}")
             return k, (start, stop)
         else:
-            prefix = 'In-progress events:'
-            actives_str = "\n\t".join(self.fmt_key_startstop(k_startstop) for k_startstop in actives)
-            suffix = 'Type which event to select:'
+            prefix = "In-progress events:"
+            actives_str = "\n\t".join(
+                self.fmt_key_startstop(k_startstop) for k_startstop in actives
+            )
+            suffix = "Type which event to select:"
 
-            msg = f'{prefix}\n\n\t{actives_str}\n\n{suffix}'
+            msg = f"{prefix}\n\n\t{actives_str}\n\n{suffix}"
 
-            key = simpledialog.askstring(title, msg) or ''
+            key = simpledialog.askstring(title, msg) or ""
             key = key.strip().lower()
             if key:
                 actives_d = dict(actives)
@@ -218,10 +223,11 @@ class Window:
         selection = self._select_in_progress_event("Edit note")
         if selection:
             key, (start, stop) = selection
-            initial = self.events.events[key].get(start, '')
+            initial = self.events.events[key].get(start, "")
             note = simpledialog.askstring(
-                "Edit note", f'Enter note for event "{self.events.name(key)}" ({start} -> {stop}):',
-                initialvalue=initial
+                "Edit note",
+                f'Enter note for event "{self.events.name(key)}" ({start} -> {stop}):',
+                initialvalue=initial,
             )
             if note is not None:
                 self.events.insert(key, start or 0, note.strip())
@@ -230,19 +236,24 @@ class Window:
         selection = self._select_in_progress_event("Delete event", False)
         if selection:
             key, (start, stop) = selection
-            if messagebox.askyesno(f'Delete event', f'Deleting event "{self.events.name(key)}" ({start} -> {stop}).\n\nAre you sure?'):
+            if messagebox.askyesno(
+                f"Delete event",
+                f'Deleting event "{self.events.name(key)}" ({start} -> {stop}).\n\nAre you sure?',
+            ):
                 self.events.delete(key, start)
                 self.events.delete(key.upper(), stop)
 
     def fmt_key_startstop(self, key_startstop):
         key, (start, stop) = key_startstop
         name = self.events.name(key)
-        name_str = f' ("{name}")' if name == key.lower() else ''
+        name_str = f' ("{name}")' if name == key.lower() else ""
         return f"{key}{name_str} [{start} --> {stop}]"
 
     def get_actives_str(self):
         actives = sorted(self.active_events())
-        return "\n\t".join(self.fmt_key_startstop(k_startstop) for k_startstop in actives)
+        return "\n\t".join(
+            self.fmt_key_startstop(k_startstop) for k_startstop in actives
+        )
 
     def input(self, msg):
         self.print(msg, end="")

@@ -7,3 +7,4 @@ toml==0.10.0
 setuptools==40.8.0
 wheel==0.33.1
 twine==1.13.0
+pre-commit==1.16.0

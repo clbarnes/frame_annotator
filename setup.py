@@ -12,7 +12,7 @@ with open(package / "version.py") as f:
 
 setuptools.setup(
     name="fran",
-    version=__version__,
+    version=__version__,  # noqa
     packages=["fran"],
     install_requires=[
         "imageio>=2.5.0",
