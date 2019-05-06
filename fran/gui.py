@@ -102,12 +102,12 @@ class Window:
 
     def _handle_step_right(self):
         self.logger.log(FRAME, "Step Right detected")
-        self.show_frame_info()
+        self.show_frame_info(frame=self.spooler.current_idx + 1)
         return 1, True
 
     def _handle_step_left(self):
         self.logger.log(FRAME, "Step Left detected")
-        self.show_frame_info()
+        self.show_frame_info(frame=self.spooler.current_idx - 1)
         return -1, True
 
     def handle_events(self) -> Tuple[Optional[int], bool]:
@@ -128,11 +128,7 @@ class Window:
                 return None, False
             if event.type == pygame.KEYDOWN:
                 if event.mod & pygame.KMOD_CTRL:
-                    if event.key == pygame.K_RIGHT:  # step right
-                        return self._handle_step_right()
-                    elif event.key == pygame.K_LEFT:  # step left
-                        return self._handle_step_left()
-                    elif event.key == pygame.K_s:  # save
+                    if event.key == pygame.K_s:  # save
                         self.save()
                     elif event.key == pygame.K_h:  # help
                         self.print(CONTROLS)
@@ -159,17 +155,16 @@ class Window:
                     self.show_frame_info()
                 elif event.key == pygame.K_DELETE:  # delete a current event
                     self._handle_delete()
-            elif event.type == pygame.KEYUP and event.key in (
-                pygame.K_UP,
-                pygame.K_DOWN,
-            ):  # finished changing contrast
-                self.show_frame_info()
-                self.spooler.renew_cache()
+            elif event.type == pygame.KEYUP:
+                if event.key in (pygame.K_UP, pygame.K_DOWN,):  # finished changing contrast
+                    self.show_frame_info()
+                    self.spooler.renew_cache()
+                elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
+                    self.show_frame_info()
         else:
             pressed = pygame.key.get_pressed()
-            if pressed[pygame.K_LCTRL]:
-                return 0, False
             speed = 10 if pressed[pygame.K_LSHIFT] else 1
+
             if pressed[pygame.K_RIGHT]:
                 return speed, True
             if pressed[pygame.K_LEFT]:
@@ -180,17 +175,29 @@ class Window:
 
         return 0, False
 
-    def show_frame_info(self):
+    def show_frame_info(self, frame=None, contrast_lower=None, contrast_upper=None):
+        if frame is None:
+            frame = self.spooler.current_idx
+        if contrast_lower is None:
+            contrast_lower = self.spooler.contrast_lower
+        if contrast_upper is None:
+            contrast_upper = self.spooler.contrast_upper
         self.print(
-            f"Frame {self.spooler.current_idx}, "
-            f"contrast = ({self.spooler.contrast_lower / 255:.02f}, "
-            f"{self.spooler.contrast_upper / 255:.02f})"
+            f"Frame {frame}, "
+            f"contrast = ({contrast_lower / 255:.02f}, {contrast_upper / 255:.02f})"
         )
 
     @contextlib.contextmanager
     def _handle_event_in_progress(
         self, msg, auto=True
     ) -> Optional[Tuple[str, Tuple[int, int]]]:
+        """
+        Wait for user input on STDIN
+
+        :param msg: prompt to use when asking for which event
+        :param auto: if there is only one event, and ``auto`` is True, select it automatically
+        :return:
+        """
         actives = sorted(self.active_events())
         if not actives:
             self.print("No events in progress")
