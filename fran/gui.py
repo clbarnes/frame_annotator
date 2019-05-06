@@ -2,7 +2,7 @@
 import sys
 import os
 from functools import wraps
-from tkinter import filedialog
+from tkinter import filedialog, simpledialog, messagebox
 from typing import Tuple, Optional, Callable
 import logging
 from string import ascii_letters
@@ -187,63 +187,60 @@ class Window:
             f"contrast = ({contrast_lower / 255:.02f}, {contrast_upper / 255:.02f})"
         )
 
-    @contextlib.contextmanager
-    def _handle_event_in_progress(
-        self, msg, auto=True
-    ) -> Optional[Tuple[str, Tuple[int, int]]]:
-        """
-        Wait for user input on STDIN
-
-        :param msg: prompt to use when asking for which event
-        :param auto: if there is only one event, and ``auto`` is True, select it automatically
-        :return:
-        """
+    def _select_in_progress_event(self, title='Select event', auto=True):
+        self.logger.info("Selecting in-progress event")
         actives = sorted(self.active_events())
         if not actives:
             self.print("No events in progress")
-            yield None
-        elif len(actives) == 1 and auto:
-            self.print(msg)
+        if len(actives) == 1 and auto:
             k, (start, stop) = actives[0]
             self.print(f"\tAutomatically selecting only event, {k}: {start} -> {stop}")
-            yield k, (start, stop)
+            return k, (start, stop)
         else:
-            actives_str = "\n\t".join(
-                f"{k}: {start} -> {stop}" for k, (start, stop) in actives
-            )
-            user_val = self.input(
-                f"{msg} (press key and then enter; empty for none)\n\t{actives_str}\n> "
-            )
-            if user_val:
+            prefix = 'In-progress events:'
+            actives_str = "\n\t".join(self.fmt_key_startstop(k_startstop) for k_startstop in actives)
+            suffix = 'Type which event to select:'
+
+            msg = f'{prefix}\n\n\t{actives_str}\n\n{suffix}'
+
+            key = simpledialog.askstring(title, msg) or ''
+            key = key.strip().lower()
+            if key:
                 actives_d = dict(actives)
-                key = user_val.lower()
                 if key in actives_d:
-                    yield key, actives_d[key]
+                    return key, actives_d[key]
                 else:
-                    yield None
                     self.print(f"Event '{key}' not in progress")
-            else:
-                yield None
+
+        return None
 
     def _handle_note(self):
-        with self._handle_event_in_progress("Note for which event?") as k_startstop:
-            if k_startstop:
-                key, (start, stop) = k_startstop
-                note = self.input("Enter note: ")
-                self.events.insert(key, start or 0, note)
+        selection = self._select_in_progress_event("Edit note")
+        if selection:
+            key, (start, stop) = selection
+            initial = self.events.events[key].get(start, '')
+            note = simpledialog.askstring(
+                "Edit note", f'Enter note for event "{self.events.name(key)}" ({start} -> {stop}):',
+                initialvalue=initial, parent=root_tk
+            )
+            if note is not None:
+                self.events.insert(key, start or 0, note.strip())
 
     def _handle_delete(self):
-        with self._handle_event_in_progress(
-            "Delete which event?", False
-        ) as k_startstop:
-            if k_startstop:
-                key, (start, stop) = k_startstop
+        selection = self._select_in_progress_event("Delete event", False)
+        if selection:
+            key, (start, stop) = selection
+            if messagebox.askyesno(f'Delete event', f'Deleting event "{self.events.name(key)}" ({start} -> {stop}).\n\nAre you sure?'):
                 self.events.delete(key, start)
                 self.events.delete(key.upper(), stop)
 
+    def fmt_key_startstop(self, key_startstop):
+        key, (start, stop) = key_startstop
+        return f"{key} ({self.events.name(key)}) [{start} --> {stop}]"
+
     def get_actives_str(self):
         actives = sorted(self.active_events())
-        return "\n\t".join(f"{k}: {start} -> {stop}" for k, (start, stop) in actives)
+        return "\n\t".join(self.fmt_key_startstop(k_startstop) for k_startstop in actives)
 
     def input(self, msg):
         self.print(msg, end="")
