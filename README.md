@@ -39,7 +39,7 @@ optional arguments:
                         Number of frames to cache (increase if reading over a network and you have lots of RAM); default 500
   --threads THREADS, -t THREADS
                         number of threads to use for reading file (increase if reading over a network); default 3
-  --keys KEYS, -k KEYS  Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"
+  --keys KEYS, -k KEYS  Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right". These are additive with those defined in the config
   --flipx, -x           Flip image in x
   --flipy, -y           Flip image in y
   --rotate ROTATE, -r ROTATE
@@ -51,8 +51,7 @@ Playback
 ========
 LEFT and RIGHT arrows play the video in that direction at the configured FPS.
 Hold SHIFT + direction to play at 10x speed.
-Hold CTRL + direction to step through one frame at a time.
-(Alternatively, COMMA and PERIOD can be used to step left and right respectively)
+Press COMMA or PERIOD to step one frame left or right, respectively.
 
 Contrast
 ========
@@ -75,11 +74,10 @@ BACKSPACE shows the current frame number and contrast thresholds in the interval
 
 Prompts
 =======
-DELETE shows a prompt asking which in-progress event to delete.
-CTRL + n shows a prompt asking which in-progress event to add a note to, and the note.
+DELETE shows a prompt asking which in-progress event to delete, then a confirmation.
+CTRL + n shows a prompt asking which in-progress event whose note to edit (if there is more than one), then the new value.
 
-In order to interact with a prompt, you will need to click on the console and enter your response.
-Then, click on the fran window to keep annotating.
+Prompts may appear in unexpected places on your screen.
 
 Other
 =====
@@ -155,3 +153,4 @@ start,stop,key,event,note
 [MacOS disagrees with pygame](https://bitbucket.org/pygame/pygame/issues/203/window-does-not-get-focus-on-os-x-with)
  if installed in a virtual environment: 
  use the system python (if 3.7+ is available) or one installed with homebrew.
+ (if 3.7+ is available) or one installed with homebrew.
