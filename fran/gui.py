@@ -9,7 +9,7 @@ from string import ascii_letters
 import contextlib
 import tkinter as tk
 
-from fran.version import __version__
+from fran import __version__
 from fran.constants import (
     DEFAULT_CACHE_SIZE,
     DEFAULT_FPS,

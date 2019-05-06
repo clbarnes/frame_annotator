@@ -7,12 +7,9 @@ package = here / "fran"
 with open(here / "README.md") as f:
     long_description = f.read()
 
-with open(package / "version.py") as f:
-    exec(f.read())
-
 setuptools.setup(
     name="fran",
-    version=__version__,  # noqa
+    version="0.3.0",
     packages=["fran"],
     install_requires=[
         "imageio>=2.5.0",

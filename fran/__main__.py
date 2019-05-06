@@ -4,7 +4,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 
 import toml
 
-from fran.version import __version__
+from fran import __version__
 from fran.gui import run
 from fran.constants import (
     CONTROLS,
@@ -134,7 +134,7 @@ def parse_args():
     setup_logging(parsed.verbose)
 
     if parsed.version:
-        print("fran " + __version__)
+        print(__version__)
         sys.exit(0)
 
     keys_mapping = DEFAULT_KEYS.copy()
