@@ -221,7 +221,7 @@ class Window:
             initial = self.events.events[key].get(start, '')
             note = simpledialog.askstring(
                 "Edit note", f'Enter note for event "{self.events.name(key)}" ({start} -> {stop}):',
-                initialvalue=initial, parent=root_tk
+                initialvalue=initial
             )
             if note is not None:
                 self.events.insert(key, start or 0, note.strip())
@@ -236,7 +236,9 @@ class Window:
 
     def fmt_key_startstop(self, key_startstop):
         key, (start, stop) = key_startstop
-        return f"{key} ({self.events.name(key)}) [{start} --> {stop}]"
+        name = self.events.name(key)
+        name_str = f' ("{name}")' if name == key.lower() else ''
+        return f"{key}{name_str} [{start} --> {stop}]"
 
     def get_actives_str(self):
         actives = sorted(self.active_events())
@@ -329,6 +331,14 @@ def run(
     rotate=DEFAULT_ROTATE,
 ):
     logger.info("Starting fran v" + __version__)
+    logger.debug("Input file: %s", fpath)
+    logger.debug("Output file: %s", out_path)
+    logger.debug("Max FPS: %s", max_fps)
+    logger.debug("Threads: %s", threads)
+    logger.debug("Event names: %s", keys)
+    logger.debug("Flip X: %s", flipx)
+    logger.debug("Flip Y: %s", flipy)
+    logger.debug("Rotate: %s", rotate)
 
     if not fpath:
         fpath = filedialog.askopenfilename(

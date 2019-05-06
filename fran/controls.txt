@@ -25,11 +25,10 @@ BACKSPACE shows the current frame number and contrast thresholds in the interval
 
 Prompts
 =======
-DELETE shows a prompt asking which in-progress event to delete.
-CTRL + n shows a prompt asking which in-progress event to add a note to, and the note.
+DELETE shows a prompt asking which in-progress event to delete, then a confirmation.
+CTRL + n shows a prompt asking which in-progress event whose note to edit (if there is more than one), then the new value.
 
-In order to interact with a prompt, you will need to click on the console and enter your response.
-Then, click on the fran window to keep annotating.
+Prompts may appear in unexpected places on your screen.
 
 Other
 =====

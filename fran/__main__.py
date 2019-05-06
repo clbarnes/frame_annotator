@@ -27,12 +27,13 @@ logger = logging.getLogger(__name__)
 def parse_keys(s):
     d = dict()
     for pair in s.split(","):
-        for key, event in pair.split("="):
-            event = event.strip()
-            key = key.strip().lower()
-            if len(key) > 1:
-                raise ValueError("keys must be 1 character long")
-            d[key] = event
+        key, event = pair.split("=")
+        event = event.strip()
+        key = key.strip().lower()
+        logger.debug("")
+        if len(key) > 1:
+            raise ValueError("keys must be 1 character long")
+        d[key] = event
     return d
 
 
@@ -88,8 +89,9 @@ def parse_args():
         "--keys",
         "-k",
         type=parse_keys,
-        default=DEFAULT_KEYS.copy(),
-        help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right"',
+        default=dict(),
+        help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right". '
+             'These are additive with those defined in the config',
     )
     parser.add_argument(
         "--flipx",
@@ -136,9 +138,11 @@ def parse_args():
         print("fran " + __version__)
         sys.exit(0)
 
+    keys_mapping = DEFAULT_KEYS.copy()
+
     if parsed.config:
         logger.info("Loading config file from %s", parsed.config)
-        config = toml.load(config_path)
+        config = toml.load(parsed.config)
 
         for setting_key in ("fps", "cache", "threads"):
             if getattr(parsed, setting_key) is None:
@@ -149,10 +153,11 @@ def parse_args():
                         setting_key, default_config["settings"][setting_key]
                     ),
                 )
-        config.get("keys", dict()).update(
-            parsed.keys or default_config.get("keys", dict())
-        )
-        parsed.keys = config["keys"]
+
+        keys_mapping.update(config.get("keys", dict()))
+
+    keys_mapping.update(parsed.keys)
+    parsed.keys = keys_mapping
 
     if parsed.write_config:
         logger.info("Writing config file to %s and exiting", parsed.write_config)

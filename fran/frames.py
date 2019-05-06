@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 
 
 class FrameAccessor:
+    count = 0
+
     def __init__(self, fpath, **kwargs):
-        self.logger = logger.getChild(type(self).__name__)
+        self.logger = logger.getChild(type(self)._accessor_name())
         self.lock = Lock()
 
         self.fpath = fpath
@@ -35,6 +37,12 @@ class FrameAccessor:
         self.logger.info(
             "Detected frames of dtype %s (non-uint8 may be slower)", self.dtype
         )
+
+    @classmethod
+    def _accessor_name(cls):
+        name = f"{cls.__name__}<{cls.count}>"
+        cls.count += 1
+        return name
 
     def close(self):
         return self.reader.close()
