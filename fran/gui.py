@@ -72,6 +72,17 @@ class Window:
         else:
             self.events = EventLogger(key_mapping)
 
+        self.update_caption()
+
+    def update_caption(self, msg=None):
+        if msg is None:
+            msg = "frame{}|contrast({:.02f},{:.02f})".format(
+                self.spooler.current_idx,
+                self.spooler.contrast_lower / 255,
+                self.spooler.contrast_upper / 255,
+            )
+        pygame.display.set_caption("fran|" + msg)
+
     def _make_surf(self, flipx=False, flipy=False, rotate=0):
         def fn():
             surf = self.im_surf
@@ -91,6 +102,7 @@ class Window:
             arr = self.spooler.step(step).result()
 
             self.draw_array(arr)
+            self.update_caption()
 
         self.clock.tick(self.fps)
 
@@ -99,12 +111,10 @@ class Window:
 
     def _handle_step_right(self):
         self.logger.log(FRAME, "Step Right detected")
-        self.show_frame_info(frame=self.spooler.current_idx + 1)
         return 1, True
 
     def _handle_step_left(self):
         self.logger.log(FRAME, "Step Left detected")
-        self.show_frame_info(frame=self.spooler.current_idx - 1)
         return -1, True
 
     def handle_events(self) -> Tuple[Optional[int], bool]:
@@ -157,10 +167,7 @@ class Window:
                     pygame.K_UP,
                     pygame.K_DOWN,
                 ):  # finished changing contrast
-                    self.show_frame_info()
                     self.spooler.renew_cache()
-                elif event.key in (pygame.K_LEFT, pygame.K_RIGHT):
-                    self.show_frame_info()
         else:
             pressed = pygame.key.get_pressed()
             speed = 10 if pressed[pygame.K_LSHIFT] else 1
@@ -188,6 +195,7 @@ class Window:
         )
 
     def _select_in_progress_event(self, title="Select event", auto=True):
+        self.update_caption("see event prompt")
         self.logger.info("Selecting in-progress event")
         actives = sorted(self.active_events())
         if not actives:
@@ -221,6 +229,7 @@ class Window:
         if selection:
             key, (start, stop) = selection
             initial = self.events.events[key].get(start, "")
+            self.update_caption("see note prompt")
             note = simpledialog.askstring(
                 "Edit note",
                 f'Enter note for event "{self.events.name(key)}" ({start} -> {stop}):',
@@ -228,17 +237,24 @@ class Window:
             )
             if note is not None:
                 self.events.insert(key, start or 0, note.strip())
+                self.update_caption("edited note")
+                return
+        self.update_caption("note edit cancelled")
 
     def _handle_delete(self):
         selection = self._select_in_progress_event("Delete event", False)
         if selection:
             key, (start, stop) = selection
+            self.update_caption("see confirmation")
             if messagebox.askyesno(
                 f"Delete event",
                 f'Deleting event "{self.events.name(key)}" ({start} -> {stop}).\n\nAre you sure?',
             ):
                 self.events.delete(key, start)
                 self.events.delete(key.upper(), stop)
+                self.update_caption("deleted")
+                return
+        self.update_caption("delete cancelled")
 
     def fmt_key_startstop(self, key_startstop):
         key, (start, stop) = key_startstop
@@ -292,6 +308,7 @@ class Window:
     def save(self, fpath=None, ask=True):
         fpath = fpath or self.out_path
         if ask and not fpath:
+            self.update_caption("see file prompt")
             fpath = filedialog.asksaveasfilename(
                 filetypes=(("CSV files", "*.csv"), ("All files", "*.*"))
             )
@@ -300,6 +317,10 @@ class Window:
             fpath = None
 
         self.events.save(fpath)
+        if fpath:
+            self.update_caption("saved")
+        else:
+            self.update_caption()
 
     def draw_array(self, arr):
         pygame.surfarray.blit_array(self.im_surf, arr.T)

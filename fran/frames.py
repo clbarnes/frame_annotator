@@ -68,8 +68,9 @@ class FrameSpooler:
         **kwargs,
     ):
         self.logger = logger.getChild(type(self).__name__)
+        self.fpath = fpath
 
-        frames = FrameAccessor(fpath, **kwargs)
+        frames = FrameAccessor(self.fpath, **kwargs)
         self.frame_shape = frames.frame_shape
         self.frame_count = len(frames)
 
@@ -84,7 +85,7 @@ class FrameSpooler:
         self.accessor_pool = Queue()
         self.accessor_pool.put(frames)
         for _ in range(max_workers - 1):
-            self.accessor_pool.put(FrameAccessor(fpath, **kwargs))
+            self.accessor_pool.put(FrameAccessor(self.fpath, **kwargs))
 
         self.current_idx = 0
 
