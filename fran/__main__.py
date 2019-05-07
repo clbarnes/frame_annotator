@@ -5,6 +5,7 @@ from argparse import ArgumentParser, RawTextHelpFormatter
 import toml
 
 from fran import __version__
+from fran.common import parse_keys, setup_logging
 from fran.gui import run
 from fran.constants import (
     CONTROLS,
@@ -16,32 +17,10 @@ from fran.constants import (
     DEFAULT_ROTATE,
     DEFAULT_KEYS,
     default_config,
-    FRAME,
 )
 
 
 logger = logging.getLogger(__name__)
-
-
-def parse_keys(s):
-    d = dict()
-    for pair in s.split(","):
-        key, event = pair.split("=")
-        event = event.strip()
-        key = key.strip().lower()
-        logger.debug("")
-        if len(key) > 1:
-            raise ValueError("keys must be 1 character long")
-        d[key] = event
-    return d
-
-
-def setup_logging(verbosity):
-    verbosity = verbosity or 0
-    logging.addLevelName(FRAME, "FRAME")
-    levels = [logging.INFO, logging.DEBUG, FRAME, logging.NOTSET]
-    v_idx = min(verbosity, len(levels) - 1)
-    logging.basicConfig(level=levels[v_idx])
 
 
 def parse_args():

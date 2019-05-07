@@ -7,6 +7,8 @@ import logging
 import numpy as np
 import pandas as pd
 
+from fran.common import load_results, dump_results, df_to_str
+
 logger = logging.getLogger(__name__)
 
 
@@ -218,17 +220,12 @@ class EventLogger:
             print(str(self))
         else:
             df = self.to_df()
-            df_kwargs = {"index": False}
-            df_kwargs.update(kwargs)
-            df.to_csv(fpath, **df_kwargs)
+            dump_results(df, fpath, **kwargs)
             self.logger.info("Saved to %s", fpath)
 
     def __str__(self):
         output = self.to_df()
-        rows = [",".join(output.columns)]
-        for row in output.itertuples(index=False):
-            rows.append(",".join(str(item) for item in row))
-        return "\n".join(rows)
+        return df_to_str(output)
 
     @classmethod
     def from_df(cls, df: pd.DataFrame, key_mapping=None):
@@ -255,26 +252,5 @@ class EventLogger:
 
     @classmethod
     def from_csv(cls, fpath, key_mapping=None):
-        df = pd.read_csv(fpath)
-        df["note"] = [sanitise_note(item) for item in df["note"]]
-        for col in ["start", "stop"]:
-            df[col] = np.array(
-                [fn_or(item, int, None) for item in df[col]], dtype=object
-            )
+        df = load_results(fpath)
         return cls.from_df(df, key_mapping)
-
-
-def sanitise_note(item):
-    try:
-        if item.lower() != "nan":
-            return item
-    except AttributeError:
-        pass
-    return ""
-
-
-def fn_or(item, fn=int, default=None):
-    try:
-        return fn(item)
-    except ValueError:
-        return default
