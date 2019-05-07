@@ -27,6 +27,7 @@ setuptools.setup(
         "console_scripts": [
             "fran = fran.__main__:main",
             "frame_annotator = fran.__main__:main",
+            "fran-rename = fran.rename:main",
         ]
     },
     url="https://github.com/clbarnes/frame_annotator",
