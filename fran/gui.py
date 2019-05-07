@@ -72,9 +72,6 @@ class Window:
         else:
             self.events = EventLogger(key_mapping)
 
-        self.tk_root = tk.Tk()
-        self.tk_root.withdraw()
-
     def _make_surf(self, flipx=False, flipy=False, rotate=0):
         def fn():
             surf = self.im_surf
@@ -195,7 +192,7 @@ class Window:
         actives = sorted(self.active_events())
         if not actives:
             self.print("No events in progress")
-        if len(actives) == 1 and auto:
+        elif len(actives) == 1 and auto:
             k, (start, stop) = actives[0]
             self.print(f"\tAutomatically selecting only event, {k}: {start} -> {stop}")
             return k, (start, stop)
@@ -350,6 +347,9 @@ def run(
     logger.debug("Flip X: %s", flipx)
     logger.debug("Flip Y: %s", flipy)
     logger.debug("Rotate: %s", rotate)
+
+    tk_root = tk.Tk()
+    tk_root.withdraw()
 
     if not fpath:
         fpath = filedialog.askopenfilename(
