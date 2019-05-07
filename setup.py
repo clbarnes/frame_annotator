@@ -9,7 +9,7 @@ with open(here / "README.md") as f:
 
 setuptools.setup(
     name="fran",
-    version="0.4.2",
+    version="0.4.3",
     packages=["fran"],
     install_requires=[
         "imageio>=2.5.0",
