@@ -22,7 +22,7 @@ from fran.constants import (
     FRAME,
 )
 from fran.events import EventLogger
-from fran.frames import FrameSpooler
+from fran.frames import FrameSpooler, ImageConverter
 
 with contextlib.redirect_stdout(None):
     import pygame
@@ -51,6 +51,7 @@ class Window:
         self.logger = logger.getChild(type(self).__name__)
 
         self.spooler = spooler
+        self.im_conv = ImageConverter(self.spooler.frame_dtype)
         self.fps = fps
         self.out_path = out_path
 
@@ -76,10 +77,11 @@ class Window:
 
     def update_caption(self, msg=None):
         if msg is None:
-            msg = "frame{}|contrast({:.02f},{:.02f})".format(
+            msg = "frame{}({:.0f}%)|contrast({:.02f},{:.02f})".format(
                 self.spooler.current_idx,
-                self.spooler.contrast_lower / 255,
-                self.spooler.contrast_upper / 255,
+                self.spooler.current_idx / self.spooler.frame_count * 100,
+                self.im_conv.contrast_lower.idx / 100,
+                self.im_conv.contrast_upper.idx / 100,
             )
         pygame.display.set_caption("fran|" + msg)
 
@@ -162,12 +164,12 @@ class Window:
                     self.show_frame_info()
                 elif event.key == pygame.K_DELETE:  # delete a current event
                     self._handle_delete()
-            elif event.type == pygame.KEYUP:
-                if event.key in (
-                    pygame.K_UP,
-                    pygame.K_DOWN,
-                ):  # finished changing contrast
-                    self.spooler.renew_cache()
+            # elif event.type == pygame.KEYUP:
+            #     if event.key in (
+            #         pygame.K_UP,
+            #         pygame.K_DOWN,
+            #     ):  # finished changing contrast
+            #         self.spooler.renew_cache()
         else:
             pressed = pygame.key.get_pressed()
             speed = 10 if pressed[pygame.K_LSHIFT] else 1
@@ -186,12 +188,12 @@ class Window:
         if frame is None:
             frame = self.spooler.current_idx
         if contrast_lower is None:
-            contrast_lower = self.spooler.contrast_lower
+            contrast_lower = self.im_conv.contrast_lower.idx / 100
         if contrast_upper is None:
-            contrast_upper = self.spooler.contrast_upper
+            contrast_upper = self.im_conv.contrast_upper.idx / 100
         self.print(
             f"Frame {frame}, "
-            f"contrast = ({contrast_lower / 255:.02f}, {contrast_upper / 255:.02f})"
+            f"contrast = ({contrast_lower:.02f}, {contrast_upper:.02f})"
         )
 
     def _select_in_progress_event(self, title="Select event", auto=True):
@@ -276,23 +278,15 @@ class Window:
         mods = pygame.key.get_mods()
         if pressed[pygame.K_UP]:
             if mods & pygame.KMOD_SHIFT:
-                self.spooler.update_contrast(
-                    upper=self.spooler.contrast_upper + 1, freeze_cache=True
-                )
+                self.im_conv.contrast_upper.increase()
             else:
-                self.spooler.update_contrast(
-                    lower=self.spooler.contrast_lower + 1, freeze_cache=True
-                )
+                self.im_conv.contrast_lower.increase()
             return True
         elif pressed[pygame.K_DOWN]:
             if mods & pygame.KMOD_SHIFT:
-                self.spooler.update_contrast(
-                    upper=self.spooler.contrast_upper - 1, freeze_cache=True
-                )
+                self.im_conv.contrast_upper.decrease()
             else:
-                self.spooler.update_contrast(
-                    lower=self.spooler.contrast_lower - 1, freeze_cache=True
-                )
+                self.im_conv.contrast_lower.decrease()
             return True
         return False
 
@@ -323,7 +317,7 @@ class Window:
             self.update_caption()
 
     def draw_array(self, arr):
-        pygame.surfarray.blit_array(self.im_surf, arr.T)
+        pygame.surfarray.blit_array(self.im_surf, self.im_conv(arr).T)
         self.screen.blit(self.transformed_surf(), (0, 0))
 
         pygame.display.update()

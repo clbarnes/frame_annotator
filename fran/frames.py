@@ -1,5 +1,4 @@
 import contextlib
-import itertools
 from collections import deque
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -13,7 +12,7 @@ import imageio
 import numpy as np
 from skimage.exposure import rescale_intensity
 
-from fran.constants import DEFAULT_THREADS, DEFAULT_CACHE_SIZE, FRAME
+from fran.constants import DEFAULT_THREADS, DEFAULT_CACHE_SIZE
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +58,62 @@ class FrameAccessor:
             yield self[idx]
 
 
+class Spinner:
+    def __init__(self, initial_idx, options):
+        self.idx = initial_idx
+        self.options = options
+
+        self.max_idx = len(options) - 1
+
+    def increase(self, steps=1):
+        self.idx = min(self.max_idx, self.idx + steps)
+        return self()
+
+    def decrease(self, steps=1):
+        self.idx = max(0, self.idx - steps)
+        return self()
+
+    def __call__(self, idx: int = None) -> float:
+        if idx is not None:
+            if idx < 0:
+                self.idx = 0
+            elif idx >= len(self.options):
+                self.idx = len(self.options) - 1
+            else:
+                self.idx = idx
+
+        return self.options[self.idx]
+
+
+class ImageConverter:
+    n_steps = 101
+
+    def __init__(self, in_dtype, out_dtype=np.dtype("uint8")):
+        if in_dtype not in (np.dtype("uint8"), np.dtype("uint16")):
+            raise ValueError("Only uint8 and uint16 dtypes are supported")
+
+        self.in_dtype = np.dtype(in_dtype)
+        dtype_info = np.iinfo(self.in_dtype.name)
+
+        options = np.linspace(
+            dtype_info.min, dtype_info.max, self.n_steps, dtype=self.in_dtype
+        )
+
+        self.contrast_lower = Spinner(0, options)
+        self.contrast_upper = Spinner(len(options) - 1, options)
+
+        self.out_dtype = np.dtype(out_dtype)
+
+    def __call__(self, arr):
+        if arr.dtype != self.in_dtype:
+            raise ValueError(
+                f"Given array ({arr.dtype}) is not of the correct dtype ({self.in_dtype})"
+            )
+        return rescale_intensity(
+            arr, (self.contrast_lower(), self.contrast_upper()), self.out_dtype.name
+        ).astype(self.out_dtype)
+
+
 class FrameSpooler:
     def __init__(
         self,
@@ -71,16 +126,9 @@ class FrameSpooler:
         self.fpath = fpath
 
         frames = FrameAccessor(self.fpath, **kwargs)
+        self.frame_dtype = frames.dtype
         self.frame_shape = frames.frame_shape
         self.frame_count = len(frames)
-
-        try:
-            self.converter = {
-                np.dtype("uint8"): self.from_uint8,
-                np.dtype("uint16"): self.from_uint16,
-            }[frames.dtype]
-        except KeyError:
-            raise ValueError(f"Image data type not supported: {frames.dtype}")
 
         self.accessor_pool = Queue()
         self.accessor_pool.put(frames)
@@ -92,13 +140,6 @@ class FrameSpooler:
         self.pyg_size = self.frame_shape[1::-1]
 
         self.half_cache = cache_size // 2
-
-        u8_info = np.iinfo("uint8")
-        self.contrast_min = u8_info.min
-        self.contrast_max = u8_info.max
-
-        self.contrast_lower = self.contrast_min
-        self.contrast_upper = self.contrast_max
 
         self.idx_in_cache = 0
         cache_size = min(cache_size, len(frames))
@@ -114,6 +155,7 @@ class FrameSpooler:
         accessor = self.accessor_pool.get(block=True)
         yield accessor
         self.accessor_pool.put(accessor)
+        self.accessor_pool.task_done()
 
     def cache_range(self):
         """in frame number"""
@@ -126,54 +168,6 @@ class FrameSpooler:
 
     def cache_idx_to_frame_idx(self, cache_idx):
         return cache_idx + self.cache_range()[0]
-
-    def renew_cache(self):
-        self.logger.debug("renewing cache")
-        # 0, +1, -1, +2, -2, +3, -3 etc.
-        for idx in itertools.chain.from_iterable(
-            zip(
-                range(self.idx_in_cache, len(self.cache)),
-                range(self.idx_in_cache - 1, 0, -1),
-            )
-        ):
-            self.cache[idx].cancel()
-            self.cache[idx] = self.fetch_frame(self.cache_idx_to_frame_idx(idx))
-
-    def update_contrast(self, lower=None, upper=None, freeze_cache=False):
-        changed = False
-
-        if lower is not None:
-            lower = max(self.contrast_min, lower)
-            if lower != self.contrast_lower:
-                self.contrast_lower = lower
-                changed = True
-
-        if upper is not None:
-            upper = min(self.contrast_max, upper)
-            if upper != self.contrast_upper:
-                self.contrast_upper = upper
-                changed = True
-
-        if changed:
-            self.logger.log(
-                FRAME,
-                "updating contrast to %s, %s",
-                self.contrast_lower,
-                self.contrast_upper,
-            )
-            if freeze_cache:
-                self.cache[self.idx_in_cache].cancel()
-                self.cache[self.idx_in_cache] = self.fetch_frame(self.current_idx)
-            else:
-                self.renew_cache()
-        return changed
-
-    def from_uint8(self, arr):
-        return arr
-
-    def from_uint16(self, arr):
-        out = (arr // 256).astype("uint8")
-        return out
 
     @property
     def leftmost(self):
@@ -220,23 +214,21 @@ class FrameSpooler:
     def fetch_frame(self, idx):
         if 0 <= idx < self.frame_count:
             f = self.executor.submit(
-                self._fetch_frame, idx, self.contrast_lower, self.contrast_upper
+                self._fetch_frame,
+                idx
+                # self._fetch_frame, idx, self.contrast_lower, self.contrast_upper
             )
         else:
             f = Future()
             f.set_result(None)
         return f
 
-    def apply_contrast(self, img, contrast_lower, contrast_upper):
-        return rescale_intensity(img, (contrast_lower, contrast_upper))
-
     @lru_cache(maxsize=100)
-    def _fetch_frame(self, idx, contrast_lower, contrast_upper):
+    def _fetch_frame(self, idx):
         # todo: resize?
         with self.frames() as frames:
             arr = frames[idx]
 
-        arr = self.apply_contrast(self.converter(arr), contrast_lower, contrast_upper)
         return arr
 
     def close(self):
@@ -245,7 +237,8 @@ class FrameSpooler:
         self.executor.shutdown()
         self.accessor_pool.put(None)
         while True:
-            frames = self.accessor_pool.get()
+            frames = self.accessor_pool.get(timeout=1)
+            self.accessor_pool.task_done()
             if frames is None:
                 break
             frames.close()
