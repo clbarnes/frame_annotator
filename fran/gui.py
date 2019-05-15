@@ -58,7 +58,9 @@ class Window:
         pygame.init()
         self.clock = pygame.time.Clock()
         first = self.spooler.current.result()
-        self.im_surf: pygame.Surface = pygame.surfarray.make_surface(first.T)
+        self.im_surf: pygame.Surface = pygame.surfarray.make_surface(
+            self.im_conv(first).T
+        )
         self.im_surf.set_palette([(idx, idx, idx) for idx in range(256)])
         self.transformed_surf: Callable[[], pygame.Surface] = self._make_surf(
             flipx, flipy, rotate
@@ -77,11 +79,12 @@ class Window:
 
     def update_caption(self, msg=None):
         if msg is None:
-            msg = "frame{}({:.0f}%)|contrast({:.02f},{:.02f})".format(
+            msg = "frame{}({:.0f}%)|contrast({:.02f},{:.02f})|{:.0f}fps".format(
                 self.spooler.current_idx,
                 self.spooler.current_idx / self.spooler.frame_count * 100,
                 self.im_conv.contrast_lower.idx / 100,
                 self.im_conv.contrast_upper.idx / 100,
+                self.clock.get_fps(),
             )
         pygame.display.set_caption("fran|" + msg)
 
