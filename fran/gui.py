@@ -379,6 +379,11 @@ def run(
     spooler = FrameSpooler(fpath, cache_size, max_workers=threads)
     with Window(spooler, max_fps, keys, out_path, flipx, flipy, rotate) as w:
         w.loop()
-        w.save()
+        if w.events.changed:
+            w.save()
+        else:
+            logger.info("No changes since last save")
+        logger.info("Exiting...")
+    logger.info("Exited!")
 
     return 0

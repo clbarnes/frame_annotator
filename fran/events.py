@@ -63,6 +63,7 @@ class EventLogger:
 
         self.past: List[LoggedEvent] = []
         self.future: List[LoggedEvent] = []
+        self.changed = True
 
     def name(self, key):
         key = key.lower()
@@ -86,6 +87,7 @@ class EventLogger:
             return self._delete(to_do)
 
     def _insert(self, to_insert: LoggedEvent) -> LoggedEvent:
+        self.changed = True
         note = to_insert.note or self.events[to_insert.key].get(to_insert.frame, "")
         to_insert.copy(action=Action.INSERT, note=note)
         self.events[to_insert.key][to_insert.frame] = note
@@ -103,6 +105,7 @@ class EventLogger:
         return done
 
     def _delete(self, to_do):
+        self.changed = True
         if to_do.frame is None:
             return None
         note = self.events[to_do.key].pop(to_do.frame, None)
@@ -221,6 +224,7 @@ class EventLogger:
         else:
             df = self.to_df()
             dump_results(df, fpath, **kwargs)
+            self.changed = False
             self.logger.info("Saved to %s", fpath)
 
     def __str__(self):
