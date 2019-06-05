@@ -124,6 +124,7 @@ class FrameSpooler:
     ):
         self.logger = logger.getChild(type(self).__name__)
         self.fpath = fpath
+        self.logger.info("Opening file %s", fpath)
 
         frames = FrameAccessor(self.fpath, **kwargs)
         self.frame_dtype = frames.dtype
