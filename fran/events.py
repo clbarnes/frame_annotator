@@ -1,25 +1,24 @@
-import itertools
 from collections import defaultdict
 from enum import Enum
-from typing import NamedTuple, Dict, DefaultDict, List, Optional, Tuple
+from typing import NamedTuple, Dict, DefaultDict, List
 import logging
 
 import numpy as np
 import pandas as pd
 
-from fran.common import load_results, dump_results, df_to_str
+from fran.common import load_results, dump_results, df_to_str, Special
 
 logger = logging.getLogger(__name__)
 
 
-def sort_key(start_stop_event):
-    start, stop, key, event, note = start_stop_event
-    if start is None:
-        start = -np.inf
-    if stop is None:
-        stop = np.inf
-
-    return start, stop, key, event, note
+# def sort_key(start_stop_event):
+#     start, stop, key, event, note = start_stop_event
+#     if pd.isnull(start):
+#         start = -np.inf
+#     if pd.isnullstop is None:
+#         stop = np.inf
+#
+#     return start, stop, key, event, note
 
 
 class Action(Enum):
@@ -36,14 +35,14 @@ class Action(Enum):
         return self.value
 
 
-class LoggedEvent(NamedTuple):
+class LoggedKeyEvent(NamedTuple):
     action: Action
     key: str
     frame: int
     note: str = ""
 
     def invert(self):
-        return LoggedEvent(self.action.invert(), self.key, self.frame, self.note)
+        return LoggedKeyEvent(self.action.invert(), self.key, self.frame, self.note)
 
     def __str__(self):
         return "{} {} @ {} ({})".format(*self)
@@ -51,7 +50,46 @@ class LoggedEvent(NamedTuple):
     def copy(self, **kwargs):
         d = self._asdict()
         d.update(kwargs)
-        return LoggedEvent(**d)
+        return LoggedKeyEvent(**d)
+
+
+class AnnotatedEvent(NamedTuple):
+    key: str
+    event: str
+    started: int = Special.BEFORE
+    ended: int = Special.AFTER
+    note: str = ""
+
+    @property
+    def length(self):
+        started = np.nan if self.started == Special.BEFORE else self.started
+        ended = np.nan if self.ended == Special.AFTER else self.ended
+        return ended - started
+
+    def to_row(self, max_frame=None):
+        started = np.nan if self.started == Special.BEFORE else self.started
+        ended = np.nan if self.ended == Special.AFTER else self.ended
+
+        out = [started, ended]
+
+        if max_frame is not None:
+            is_oob = False
+            if self.started == Special.BEFORE:
+                started_ = 0
+                is_oob = True
+            else:
+                started_ = self.started
+
+            if self.ended == Special.AFTER:
+                ended_ = max_frame
+                is_oob = True
+            else:
+                ended_ = self.ended
+
+            out.append(f"{'>' if is_oob else ''}{ended_ - started_}")
+
+        out.extend([self.key, self.event, self.note])
+        return tuple(out)
 
 
 class EventLogger:
@@ -61,9 +99,15 @@ class EventLogger:
         self.key_mapping: Dict[str, str] = key_mapping or dict()
         self.events: DefaultDict[str, Dict[int, str]] = defaultdict(dict)
 
-        self.past: List[LoggedEvent] = []
-        self.future: List[LoggedEvent] = []
+        self.past: List[LoggedKeyEvent] = []
+        self.future: List[LoggedKeyEvent] = []
         self.changed = True
+
+    def is_before(self, val):
+        return val == Special.BEFORE
+
+    def is_after(self, val):
+        return val == Special.AFTER
 
     def name(self, key):
         key = key.lower()
@@ -80,13 +124,13 @@ class EventLogger:
         for k in self.keys():
             yield k, self.events[k.upper()]
 
-    def _do(self, to_do: LoggedEvent):
+    def _do(self, to_do: LoggedKeyEvent):
         if to_do.action == Action.INSERT:
             return self._insert(to_do)
         else:
             return self._delete(to_do)
 
-    def _insert(self, to_insert: LoggedEvent) -> LoggedEvent:
+    def _insert(self, to_insert: LoggedKeyEvent) -> LoggedKeyEvent:
         self.changed = True
         note = to_insert.note or self.events[to_insert.key].get(to_insert.frame, "")
         to_insert.copy(action=Action.INSERT, note=note)
@@ -94,13 +138,9 @@ class EventLogger:
         return to_insert
 
     def insert(self, key: str, frame: int, note=""):
-        swapped = key.swapcase()
-        if frame in self.events[swapped]:
-            done = self.delete(swapped, frame)
-        else:
-            done = self._insert(LoggedEvent(Action.INSERT, key, frame, note))
-            self.past.append(done)
-            self.future.clear()
+        done = self._insert(LoggedKeyEvent(Action.INSERT, key, frame, note))
+        self.past.append(done)
+        self.future.clear()
         self.logger.info("Logged %s", done)
         return done
 
@@ -115,7 +155,7 @@ class EventLogger:
             return to_do.copy(action=Action.DELETE, note=note)
 
     def delete(self, key, frame):
-        done = self._delete(LoggedEvent(action=Action.DELETE, key=key, frame=frame))
+        done = self._delete(LoggedKeyEvent(action=Action.DELETE, key=key, frame=frame))
 
         if done is None:
             self.logger.info("Nothing to delete")
@@ -146,62 +186,90 @@ class EventLogger:
 
         self.logger.info("Redid %s", done)
 
-    def is_active(self, key, frame) -> Optional[Tuple[Optional[int], Optional[int]]]:
-        """return start and stop indices, or None"""
-        for start, stop in self.start_stop_pairs(key):
-            if pd.isnull(start):
-                if stop > frame:
-                    return start, stop
-            elif pd.isnull(stop):
-                if start <= frame:
-                    return start, stop
-            elif start <= frame:
-                if frame < stop:
-                    return start, stop
-            else:
-                return None
+    def is_active(self, key, frame) -> bool:
+        for _ in self.get_active(frame, key):
+            return True
+        return False
 
-        return None
+    def get_active(self, frame, key=None):
+        keys = self.keys() if key is None else [key]
 
-    def get_active(self, frame):
-        for k in self.keys():
-            startstop = self.is_active(k, frame)
-            if startstop:
-                yield k, startstop
+        for k in keys:
+            for start, stop in self.start_stop_pairs(k):
+                if start <= frame < stop:
+                    yield k, (start, stop)
 
     def start_stop_pairs(self, key):
-        starts = self.events[key.lower()]
-        stops = self.events[key.upper()]
+        starts = sorted(self.events[key.lower()], reverse=True)
+        stops = sorted(self.events[key.upper()], reverse=True)
 
-        if not starts and not stops:
+        if not (starts and stops):
+            if starts:
+                yield starts.pop(), Special.AFTER
+
+            if stops:
+                yield Special.BEFORE, stops.pop(0)
+
+            for start in reversed(starts):
+                self.logger.warn(
+                    "Multiple starts and no stops for key '%s': ignoring start at frame %s",
+                    key,
+                    start,
+                )
+
+            for stop in reversed(stops):
+                self.logger.warn(
+                    "Multiple stops and no starts for key '%s': ignoring stop at frame %s",
+                    key,
+                    stop,
+                )
+
             return
 
-        is_active = None
+        early_stops = [] if starts else stops[::-1]
+        if starts:
+            while stops and stops[-1] < starts[-1]:
+                early_stops.append(stops.pop())
 
-        try:
-            first_start = min(starts)
-        except ValueError:
-            is_active = True
+        if early_stops:
+            yield Special.BEFORE, early_stops.pop()
 
-        try:
-            first_stop = min(stops)
-        except ValueError:
-            is_active = False
+        while len(early_stops) > 1:
+            self.logger.warn(
+                "Multiple event stops before event start for key '%s': ignoring stop at frame %s",
+                key,
+                early_stops.pop(),
+            )
 
-        if is_active is None:
-            is_active = first_stop < first_start
+        while starts and stops:
+            start = starts.pop()
+            stop = stops.pop()
+            if stop <= start:
+                self.logger.warn(
+                    "Event stop before event start for key '%s': ignoring stop at frame %s",
+                    key,
+                    stop,
+                )
+                starts.append(start)
+            else:
+                yield start, stop
 
-        last_start = np.nan
-        for frame in range(max(itertools.chain(starts.keys(), stops.keys())) + 1):
-            if frame in stops and is_active:
-                yield last_start, frame
-                is_active = False
-            elif frame in starts and not is_active:
-                last_start = frame
-                is_active = True
+        for stop in reversed(stops):
+            self.logger.warn(
+                "Event stop before event start for key '%s': ignoring stop at frame %s",
+                key,
+                stop,
+            )
 
-        if is_active and not pd.isnull(last_start):
-            yield last_start, np.nan
+        if starts:
+            yield starts.pop(), Special.AFTER
+
+        for start in reversed(starts):
+            self.logger.warn(
+                "Multiple event starts after last stop for key '%s': ignoring start at frame %s",
+                key,
+                start,
+            )
 
     def to_df(self):
         rows = []
@@ -212,11 +280,13 @@ class EventLogger:
                 )
 
         df = pd.DataFrame(
-            sorted(rows, key=sort_key),
-            columns=["start", "stop", "key", "event", "note"],
+            sorted(rows), columns=["start", "stop", "key", "event", "note"]
         )
-        for col in ("start", "stop"):
-            df[col] = pd.array(df[col], dtype=pd.Int64Dtype())
+
+        for col, special in [("start", Special.BEFORE), ("stop", Special.AFTER)]:
+            arr = pd.array(df[col], dtype=pd.Int64Dtype())
+            arr[arr == special] = np.nan
+            df[col] = arr
 
         return df
 
@@ -238,10 +308,12 @@ class EventLogger:
     def from_df(cls, df: pd.DataFrame, key_mapping=None):
         el = EventLogger()
         for start, stop, key, event, note in df.itertuples(index=False):
-            el.key_mapping[key] = event
+            if event != key:
+                el.key_mapping[key] = event
+
             if pd.isnull(start):
                 if note:
-                    start = 0
+                    start = Special.BEFORE.value
                     el.events[key][start] = note
             else:
                 el.events[key][start] = note
@@ -254,7 +326,10 @@ class EventLogger:
                 if existing is None:
                     el.key_mapping[k] = v
                 elif existing != v:
-                    raise ValueError("Given key mapping incompatible with given data")
+                    raise ValueError(
+                        "Given key mapping incompatible with given data. "
+                        f"Key '{k}' has 2 different events ({v}, {existing})"
+                    )
         return el
 
     @classmethod

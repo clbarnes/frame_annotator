@@ -8,11 +8,13 @@ import logging
 from string import ascii_letters
 import contextlib
 import tkinter as tk
+import datetime as dt
 
 import numpy as np
 import pandas as pd
 
 from fran import __version__
+from fran.common import Special
 from fran.constants import (
     DEFAULT_CACHE_SIZE,
     DEFAULT_FPS,
@@ -268,6 +270,10 @@ class Window:
         key, (start, stop) = key_startstop
         name = self.events.name(key)
         name_str = f' ("{name}")' if name == key.lower() else ""
+        if start == Special.BEFORE:
+            start = "BEFORE"
+        if stop == Special.AFTER:
+            stop = "AFTER"
         return f"{key}{name_str} [{start} --> {stop}]"
 
     def get_actives_str(self):
@@ -376,7 +382,10 @@ def run(
     flipy=DEFAULT_FLIPY,
     rotate=DEFAULT_ROTATE,
 ):
-    logger.info("Starting fran v" + __version__)
+    logger.info("Starting fran v%s", __version__)
+    logger.info(
+        "Timestamp: %s", dt.datetime.now(dt.timezone.utc).astimezone().isoformat()
+    )
     logger.debug("Input file: %s", fpath)
     logger.debug("Output file: %s", out_path)
     logger.debug("Max FPS: %s", max_fps)

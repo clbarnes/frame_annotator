@@ -101,6 +101,7 @@ def parse_args():
         action="count",
         help="Increase verbosity of logging (can be repeated). One for DEBUG, two for FRAME.",
     )
+    parser.add_argument("--logfile", "-l", help="File to save log to")
     parser.add_argument(
         "infile",
         nargs="?",
@@ -110,7 +111,7 @@ def parse_args():
 
     parsed = parser.parse_args()
 
-    setup_logging(parsed.verbose)
+    setup_logging(parsed.verbose, parsed.logfile)
 
     if parsed.version:
         print(__version__)
