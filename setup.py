@@ -19,6 +19,7 @@ setuptools.setup(
         "scikit-image>=0.15.0",
         "toml>=0.10.0",
     ],
+    tests_require=["pytest>=4.6.2"],
     package_data={"fran": ["config.toml", "controls.txt"]},
     long_description=long_description,
     long_description_content_type="text/markdown",

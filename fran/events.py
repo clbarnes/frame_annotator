@@ -1,6 +1,6 @@
 from collections import defaultdict
 from enum import Enum
-from typing import NamedTuple, Dict, DefaultDict, List
+from typing import NamedTuple, Dict, DefaultDict, List, Tuple, Iterator
 import logging
 
 import numpy as np
@@ -9,16 +9,6 @@ import pandas as pd
 from fran.common import load_results, dump_results, df_to_str, Special
 
 logger = logging.getLogger(__name__)
-
-
-# def sort_key(start_stop_event):
-#     start, stop, key, event, note = start_stop_event
-#     if pd.isnull(start):
-#         start = -np.inf
-#     if pd.isnullstop is None:
-#         stop = np.inf
-#
-#     return start, stop, key, event, note
 
 
 class Action(Enum):
@@ -51,45 +41,6 @@ class LoggedKeyEvent(NamedTuple):
         d = self._asdict()
         d.update(kwargs)
         return LoggedKeyEvent(**d)
-
-
-class AnnotatedEvent(NamedTuple):
-    key: str
-    event: str
-    started: int = Special.BEFORE
-    ended: int = Special.AFTER
-    note: str = ""
-
-    @property
-    def length(self):
-        started = np.nan if self.started == Special.BEFORE else self.started
-        ended = np.nan if self.ended == Special.AFTER else self.ended
-        return ended - started
-
-    def to_row(self, max_frame=None):
-        started = np.nan if self.started == Special.BEFORE else self.started
-        ended = np.nan if self.ended == Special.AFTER else self.ended
-
-        out = [started, ended]
-
-        if max_frame is not None:
-            is_oob = False
-            if self.started == Special.BEFORE:
-                started_ = 0
-                is_oob = True
-            else:
-                started_ = self.started
-
-            if self.ended == Special.AFTER:
-                ended_ = max_frame
-                is_oob = True
-            else:
-                ended_ = self.ended
-
-            out.append(f"{'>' if is_oob else ''}{ended_ - started_}")
-
-        out.extend([self.key, self.event, self.note])
-        return tuple(out)
 
 
 class EventLogger:
@@ -199,7 +150,7 @@ class EventLogger:
                 if start <= frame < stop:
                     yield k, (start, stop)
 
-    def start_stop_pairs(self, key):
+    def start_stop_pairs(self, key) -> Iterator[Tuple[int, int]]:
         starts = sorted(self.events[key.lower()], reverse=True)
         stops = sorted(self.events[key.upper()], reverse=True)
 
