@@ -9,6 +9,9 @@ from string import ascii_letters
 import contextlib
 import tkinter as tk
 
+import numpy as np
+import pandas as pd
+
 from fran import __version__
 from fran.constants import (
     DEFAULT_CACHE_SIZE,
@@ -19,7 +22,7 @@ from fran.constants import (
     DEFAULT_ROTATE,
     CONTROLS,
     DEFAULT_KEYS,
-    FRAME,
+    FRAME_LEVEL,
 )
 from fran.events import EventLogger
 from fran.frames import FrameSpooler, ImageConverter
@@ -115,11 +118,11 @@ class Window:
         yield from self.events.get_active(self.spooler.current_idx)
 
     def _handle_step_right(self):
-        self.logger.log(FRAME, "Step Right detected")
+        self.logger.log(FRAME_LEVEL, "Step Right detected")
         return 1, True
 
     def _handle_step_left(self):
-        self.logger.log(FRAME, "Step Left detected")
+        self.logger.log(FRAME_LEVEL, "Step Left detected")
         return -1, True
 
     def handle_events(self) -> Tuple[Optional[int], bool]:
@@ -136,7 +139,7 @@ class Window:
         while pygame.event.peek():
             event = pygame.event.wait()
             if event.type == pygame.QUIT:
-                self.logger.log(FRAME, "Quit detected")
+                self.logger.log(FRAME_LEVEL, "Quit detected")
                 return None, False
             if event.type == pygame.KEYDOWN:
                 if event.mod & pygame.KMOD_CTRL:
@@ -157,7 +160,7 @@ class Window:
                 elif event.unicode in LETTERS:  # log event
                     self.events.insert(event.unicode, self.spooler.current_idx)
                 elif event.key == pygame.K_RETURN:  # show results
-                    df = self.results()
+                    df = self.results(True)
                     self.print(df)
                 elif event.key == pygame.K_SPACE:  # show active events
                     self.print(
@@ -299,8 +302,25 @@ class Window:
         print_kwargs.update(**kwargs)
         print(*args, **print_kwargs)
 
-    def results(self):
-        return self.events.to_df()
+    def results(self, with_lengths=False):
+        df = self.events.to_df()
+        if with_lengths:
+            out_of_bounds = pd.isnull(df.start)
+            starts = df.start.copy()
+            starts[pd.isnull(starts)] = 0
+
+            out_of_bounds = np.logical_or(out_of_bounds, pd.isnull(df.stop))
+            stops = df.stop.copy()
+            stops[pd.isnull(stops)] = self.spooler.frame_count
+
+            lengths = stops - starts
+            lengths = [
+                f"{'>' if is_oob else ''}{length}"
+                for length, is_oob in zip(lengths, out_of_bounds)
+            ]
+
+            df.insert(2, "length", lengths)
+        return df
 
     def save(self, fpath=None, ask=True):
         fpath = fpath or self.out_path

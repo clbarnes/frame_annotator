@@ -149,10 +149,10 @@ class EventLogger:
     def is_active(self, key, frame) -> Optional[Tuple[Optional[int], Optional[int]]]:
         """return start and stop indices, or None"""
         for start, stop in self.start_stop_pairs(key):
-            if start is None:
+            if pd.isnull(start):
                 if stop > frame:
                     return start, stop
-            elif stop is None:
+            elif pd.isnull(stop):
                 if start <= frame:
                     return start, stop
             elif start <= frame:
@@ -191,17 +191,17 @@ class EventLogger:
         if is_active is None:
             is_active = first_stop < first_start
 
-        last_start = None
-        for f in range(max(itertools.chain(starts.keys(), stops.keys())) + 1):
-            if f in stops and is_active:
-                yield last_start, f
+        last_start = np.nan
+        for frame in range(max(itertools.chain(starts.keys(), stops.keys())) + 1):
+            if frame in stops and is_active:
+                yield last_start, frame
                 is_active = False
-            elif f in starts and not is_active:
-                last_start = f
+            elif frame in starts and not is_active:
+                last_start = frame
                 is_active = True
 
-        if is_active and last_start is not None:
-            yield last_start, None
+        if is_active and not pd.isnull(last_start):
+            yield last_start, np.nan
 
     def to_df(self):
         rows = []
@@ -211,11 +211,14 @@ class EventLogger:
                     (start, stop, key, self.name(key), self.events[key].get(start, ""))
                 )
 
-        return pd.DataFrame(
+        df = pd.DataFrame(
             sorted(rows, key=sort_key),
             columns=["start", "stop", "key", "event", "note"],
-            dtype=object,
         )
+        for col in ("start", "stop"):
+            df[col] = pd.array(df[col], dtype=pd.Int64Dtype())
+
+        return df
 
     def save(self, fpath=None, **kwargs):
         if fpath is None:
@@ -236,7 +239,7 @@ class EventLogger:
         el = EventLogger()
         for start, stop, key, event, note in df.itertuples(index=False):
             el.key_mapping[key] = event
-            if start is None:
+            if pd.isnull(start):
                 if note:
                     start = 0
                     el.events[key][start] = note
