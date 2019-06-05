@@ -20,7 +20,7 @@ If you think you may already have a version of `fran` installed, add the `--upgr
 usage: fran [-h] [--write_config WRITE_CONFIG] [--outfile OUTFILE]
             [--config CONFIG] [--fps FPS] [--cache CACHE] [--threads THREADS]
             [--keys KEYS] [--flipx] [--flipy] [--rotate ROTATE] [--version]
-            [--verbose]
+            [--verbose] [--logfile LOGFILE]
             [infile]
 
 Log video (multipage TIFF) frames in which an event starts or ends
@@ -48,6 +48,8 @@ optional arguments:
                         Rotate image (degrees counterclockwise; applied after flipping)
   --version             Print the version and then exit
   --verbose, -v         Increase verbosity of logging (can be repeated). One for DEBUG, two for FRAME.
+  --logfile LOGFILE, -l LOGFILE
+                        File to save log to
 
 Playback
 ========
