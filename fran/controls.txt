@@ -14,8 +14,7 @@ Events
 ======
 LETTER keys mark the start of an event associated with that letter.
 SHIFT + LETTER marks the end of the event.
-Events of different types can overlap.
-Delete an event initiation by terminating it at the same frame, and vice versa.
+Events can overlap, but events of the same type cannot contain each other.
 
 Status
 ======
