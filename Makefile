@@ -25,3 +25,12 @@ fmt:
 lint:
 	black --check fran test setup.py
 	flake8
+
+patch:
+	bash scripts/bump_version.sh patch
+
+minor:
+	bash scripts/bump_version.sh minor
+
+major:
+	bash scripts/bump_version.sh major
