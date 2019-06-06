@@ -12,6 +12,7 @@ script:
 - fran --help
 - fran --write_config out.toml
 - fran --config out.toml -vvv -f 50 -n 200 -t 5 -k "u=up,l=down" --write_config out2.toml
+- pytest
 - black --check fran setup.py
 - flake8 --ignore=E501 fran setup.py
 before_deploy: rm out.toml out2.toml
