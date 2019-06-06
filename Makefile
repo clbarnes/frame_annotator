@@ -7,7 +7,7 @@ install:
 	pip install -U .
 
 install-dev:
-	pip install -r requirements.txt && pip install -e -U .
+	pip install -r requirements.txt && pip install -e .
 
 clean:
 	rm -f *.csv

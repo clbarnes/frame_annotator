@@ -2,11 +2,11 @@
 
 ## In progress
 
-* undocumented
+* Fix remote build
 
 ## 0.8.2 (2019-06-06)
 
-* undocumented
+* Fix changelog machinery
 
 ## 0.8.0 (2019-06-06)
 
