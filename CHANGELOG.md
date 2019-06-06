@@ -4,6 +4,10 @@
 
 * undocumented
 
+## 0.8.4 (2019-06-06)
+
+* undocumented
+
 ## 0.8.3 (2019-06-06)
 
 * Fix remote build
