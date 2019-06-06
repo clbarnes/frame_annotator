@@ -2,7 +2,7 @@
 
 ## In progress
 
-* undocumented
+* Add ctrl+d to dump raw event logs for debugging
 
 ## 0.7.1
 

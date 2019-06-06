@@ -26,6 +26,9 @@ lint:
 	black --check fran test setup.py
 	flake8
 
+readme:
+	bash scripts/update_readme.sh
+
 patch:
 	bash scripts/bump_version.sh patch
 

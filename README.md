@@ -83,6 +83,10 @@ CTRL + n shows a prompt asking which in-progress event whose note to edit (if th
 
 Prompts may appear in unexpected places on your screen.
 
+Debug
+=====
+CTRL + d to dump the event log for debugging
+
 Other
 =====
 CTRL + s to save
