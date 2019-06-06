@@ -2,7 +2,7 @@
 
 ## In progress
 
-* n/a
+* undocumented
 
 ## 0.7.1
 
