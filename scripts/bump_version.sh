@@ -18,7 +18,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 CFG=$(realpath ${DIR}/../.bumpversion.cfg)
 BUMP_LIST=$(bump2version ${LEVEL} --dry-run --list --config-file ${CFG})
 NEW_VER=$(cat ${BUMP_LIST} | grep new_version | awk -F= '{print $2}')
-REPLACE="## In progress\n\n* undocumented\n\n## ${NEW_VER}"
+REPLACE="## In progress\n\n* undocumented\n\n## ${NEW_VER} $(date "+%Y-%m-%d")"
 
 CHANGELOG=$(realpath ${DIR}/../CHANGELOG.md)
 sed -i "s|## In progress|${REPLACE}|g" ${CHANGELOG}
