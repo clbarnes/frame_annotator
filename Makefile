@@ -10,8 +10,8 @@ install-dev:
 	pip install -r requirements.txt && pip install -e .
 
 clean:
-	rm -f *.csv
-	rm -rf $(PKG).egg-info/ build/ dist/
+	rm -f *.csv **/*.pyc
+	rm -rf $(PKG).egg-info/ build/ dist/ **/__pycache__/ .pytest_cache/
 
 dist: clean lint
 	python setup.py sdist bdist_wheel

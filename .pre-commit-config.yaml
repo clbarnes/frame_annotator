@@ -6,7 +6,7 @@ repos:
     hooks:
     - id: black
       language_version: python3.7
-      args: ["fran", "test", "setup.py"]
+      args: ["fran", "tests", "setup.py"]
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.2.1
     hooks:
