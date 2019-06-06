@@ -13,17 +13,16 @@
 
 set -e
 
-LEVEL=$1
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-CFG=$(realpath ${DIR}/../.bumpversion.cfg)
-BUMP_LIST=$(bump2version ${LEVEL} --dry-run --list --config-file ${CFG})
-NEW_VER=$(echo ${BUMP_LIST} | grep new_version | awk -F= '{print $2}')
-REPLACE="## In progress\n\n* undocumented\n\n## ${NEW_VER} $(date "+%Y-%m-%d")"
+cd $(git rev-parse --show-toplevel)
 
-CHANGELOG=$(realpath ${DIR}/../CHANGELOG.md)
+LEVEL=$1
+NEW_VER=$(bump2version ${LEVEL} --dry-run --list | grep new_version | awk -F= '{print $2}')
+REPLACE="## In progress\n\n* undocumented\n\n## ${NEW_VER} ($(date '+%Y-%m-%d'))"
+
+CHANGELOG=CHANGELOG.md
 sed -i "s|## In progress|${REPLACE}|g" ${CHANGELOG}
 
 git add ${CHANGELOG}
 git commit -m "Bump changelog for v${NEW_VER}"
 
-bump2version ${LEVEL} --config-file ${CFG}
+bump2version ${LEVEL}
