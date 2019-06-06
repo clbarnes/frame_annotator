@@ -4,6 +4,10 @@
 
 * undocumented
 
+## 0.8.2 (2019-06-06)
+
+* undocumented
+
 ## 0.8.0 (2019-06-06)
 
 * Add ctrl+d to dump raw event logs for debugging
