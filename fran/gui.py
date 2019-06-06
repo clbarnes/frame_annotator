@@ -171,13 +171,10 @@ class Window:
                 elif event.key == pygame.K_BACKSPACE:  # show frame info
                     self.show_frame_info()
                 elif event.key == pygame.K_DELETE:  # delete a current event
-                    self._handle_delete()
-            # elif event.type == pygame.KEYUP:
-            #     if event.key in (
-            #         pygame.K_UP,
-            #         pygame.K_DOWN,
-            #     ):  # finished changing contrast
-            #         self.spooler.renew_cache()
+                    if event.mod & pygame.KMOD_SHIFT:
+                        self._handle_delete_single()
+                    else:
+                        self._handle_delete()
         else:
             pressed = pygame.key.get_pressed()
             speed = 10 if pressed[pygame.K_LSHIFT] else 1
@@ -250,6 +247,33 @@ class Window:
                 self.update_caption("edited note")
                 return
         self.update_caption("note edit cancelled")
+
+    def _handle_delete_single(self):
+        self.update_caption("see key prompt")
+        self.logger.info("Selecting key on this frame")
+        keys = []
+        for k, d in self.events.events.items():
+            if self.spooler.current_idx in d:
+                keys.append(k)
+        if not keys:
+            self.print("\tNo keys pressed on this frame")
+            return
+
+        msg = "Pressed keys:\n\t" + "\n\t".join(
+            f"{key} ('{self.events.key_mapping.get(key.lower(), key.lower())}')"
+            for key in keys
+        )
+        key = simpledialog.askstring("Select keypress", msg) or ""
+
+        if key:
+            if key in keys:
+                self.events.delete(key, self.spooler.current_idx)
+                self.update_caption("keypress deleted")
+                return
+            else:
+                self.print(f"Key '{key}' not pressed at this frame")
+
+        self.update_caption("keypress delete cancelled")
 
     def _handle_delete(self):
         selection = self._select_in_progress_event("Delete event", False)
