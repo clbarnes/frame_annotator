@@ -162,20 +162,45 @@ class EventLogger:
                 yield Special.BEFORE, stops.pop(0)
 
             for start in reversed(starts):
-                self.logger.warn(
+                self.logger.warning(
                     "Multiple starts and no stops for key '%s': ignoring start at frame %s",
                     key,
                     start,
                 )
 
             for stop in reversed(stops):
-                self.logger.warn(
+                self.logger.warning(
                     "Multiple stops and no starts for key '%s': ignoring stop at frame %s",
                     key,
                     stop,
                 )
 
             return
+
+        # if stops[-1] < starts[-1]:
+        #     yield Special.BEFORE, stops.pop()
+        #
+        # last = []
+        #
+        # if starts[0] > stops[0]:
+        #     stops.insert(0, Special.AFTER)
+        #
+        # while True:
+        #     start = starts.pop()
+        #     stop = stops.pop()
+        #
+        #     if not starts:
+        #         for stop in reversed(stops):
+        #             self.logger.warning(
+        #                 "Extra event stops for key '%s': ignoring at frame %s",
+        #                 key, stop
+        #             )
+        #         return
+        #     if not stops:
+        #         for start in reversed(starts):
+        #             self.logger.warning(
+        #                 "Extra event starts"
+        #             )
 
         early_stops = [] if starts else stops[::-1]
         if starts:
@@ -186,7 +211,7 @@ class EventLogger:
             yield Special.BEFORE, early_stops.pop()
 
         while len(early_stops) > 1:
-            self.logger.warn(
+            self.logger.warning(
                 "Multiple event stops before event start for key '%s': ignoring stop at frame %s",
                 key,
                 early_stops.pop(),
@@ -196,7 +221,7 @@ class EventLogger:
             start = starts.pop()
             stop = stops.pop()
             if stop <= start:
-                self.logger.warn(
+                self.logger.warning(
                     "Event stop before event start for key '%s': ignoring stop at frame %s",
                     key,
                     stop,
@@ -206,7 +231,7 @@ class EventLogger:
                 yield start, stop
 
         for stop in reversed(stops):
-            self.logger.warn(
+            self.logger.warning(
                 "Event stop before event start for key '%s': ignoring stop at frame %s",
                 key,
                 stop,
@@ -216,7 +241,7 @@ class EventLogger:
             yield starts.pop(), Special.AFTER
 
         for start in reversed(starts):
-            self.logger.warn(
+            self.logger.warning(
                 "Multiple event starts after last stop for key '%s': ignoring start at frame %s",
                 key,
                 start,
