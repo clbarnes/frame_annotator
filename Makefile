@@ -1,4 +1,5 @@
-PKG="fran"
+PKG=fran
+PY_SRC=$(PKG) tests setup.py
 
 test:
 	pytest
@@ -20,11 +21,11 @@ release: dist
 	twine upload dist/*
 
 fmt:
-	black fran test setup.py
+	black $(PY_SRC)
 
 lint:
-	black --check fran test setup.py
-	flake8
+	black --check $(PY_SRC)
+	flake8 $(PY_SRC)
 
 readme:
 	bash scripts/update_readme.sh
