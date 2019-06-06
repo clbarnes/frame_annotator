@@ -2,6 +2,14 @@
 
 ## In progress
 
+* undocumented
+
+## 0.7.1 commit 2019-06-06
+
+* undocumented
+
+##  2019-06-06
+
 * Add ctrl+d to dump raw event logs for debugging
 
 ## 0.7.1
