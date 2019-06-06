@@ -5,5 +5,5 @@ ignore =
 
 paths =
     fran
-    test
+    tests
     setup.py

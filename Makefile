@@ -25,7 +25,7 @@ fmt:
 
 lint:
 	black --check $(PY_SRC)
-	flake8 $(PY_SRC)
+	flake8
 
 readme:
 	bash scripts/update_readme.sh
