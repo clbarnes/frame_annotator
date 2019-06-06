@@ -54,6 +54,17 @@ class EventLogger:
         self.future: List[LoggedKeyEvent] = []
         self.changed = True
 
+    def to_dict(self):
+        return {k: dict(v) for k, v in self.events.items() if v}
+
+    @classmethod
+    def from_dict(cls, d):
+        el = cls()
+        for k, v in d.items():
+            if v:
+                el.events[k] = {int(ki): vi for ki, vi in v.items()}
+        return el
+
     def is_before(self, val):
         return val == Special.BEFORE
 

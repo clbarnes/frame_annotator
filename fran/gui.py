@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+import json
 import sys
 import os
 from functools import wraps
@@ -155,6 +156,8 @@ class Window:
                         self.events.redo()
                     elif event.key == pygame.K_n:  # note
                         self._handle_note()
+                    elif event.key == pygame.K_d:  # dump event JSON
+                        self._dump_events()
                 elif event.key == pygame.K_PERIOD:  # aka ">" step right
                     return self._handle_step_right()
                 elif event.key == pygame.K_COMMA:  # aka "<" step left
@@ -393,6 +396,23 @@ class Window:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+    def _dump_events(self):
+        self.update_caption("see file prompt")
+
+        d = self.events.to_dict()
+        s = json.dumps(d, indent=2, sort_keys=False)
+
+        fpath = filedialog.asksaveasfilename(
+            filetypes=(("JSON files", "*.json"), ("All files", "*.*"))
+        )
+
+        if fpath:
+            with open(fpath, "w") as f:
+                f.write(s)
+
+        self.print(s)
+        self.update_caption("dumped events for debug")
 
 
 def run(
