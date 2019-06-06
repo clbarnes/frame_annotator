@@ -14,7 +14,7 @@ Events
 ======
 LETTER keys mark the start of an event associated with that letter.
 SHIFT + LETTER marks the end of the event.
-Events can overlap, but events of the same type cannot contain each other.
+Events can overlap, but events of the same type cannot contain each other or start on the same frame.
 
 Status
 ======
@@ -25,6 +25,7 @@ BACKSPACE shows the current frame number and contrast thresholds in the interval
 Prompts
 =======
 DELETE shows a prompt asking which in-progress event to delete, then a confirmation.
+SHIFT + delete shows a prompt asking which keypress on this frame to delete.
 CTRL + n shows a prompt asking which in-progress event whose note to edit (if there is more than one), then the new value.
 
 Prompts may appear in unexpected places on your screen.
