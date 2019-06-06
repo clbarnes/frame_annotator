@@ -12,11 +12,6 @@ def test_eventlogger():
 
 def test_simple():
     el = EventLogger()
-    assert list(el.start_stop_pairs("a")) == []
-
-
-def test_simple_startstop():
-    el = EventLogger()
 
     el.insert("a", 10)
     el.insert("A", 20)
