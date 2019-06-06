@@ -4,6 +4,10 @@
 
 * undocumented
 
+## 0.8.5 (2019-06-06)
+
+* undocumented
+
 ## 0.8.4 (2019-06-06)
 
 * undocumented
