@@ -1,104 +1,68 @@
+from typing import List, Tuple
+
 import pytest
 
 from fran.events import EventLogger
 from fran.common import Special
 
 
-def test_eventlogger():
+KEY = "a"
+
+
+class Parametrizations:
+    argnames = ("starts", "stops", "expecteds")
+
+    def __init__(self):
+        self.ids = []
+        self.args = []
+
+    def add(
+        self,
+        test_id: str,
+        starts: List[int] = None,
+        stops: List[int] = None,
+        expecteds: List[Tuple[int, int]] = None,
+    ):
+        starts = starts or []
+        stops = stops or []
+        expecteds = expecteds or []
+
+        self.ids.append(test_id)
+
+        self.args.append((starts, stops, expecteds))
+
+
+def _check(starts, stops, expecteds):
     el = EventLogger()
 
-    assert list(el.start_stop_pairs("a")) == []
+    for idx in starts:
+        el.insert(KEY.lower(), idx)
+    for idx in stops:
+        el.insert(KEY.upper(), idx)
+
+    assert list(el.start_stop_pairs(KEY.lower())) == expecteds
 
 
-def test_simple():
-    el = EventLogger()
-
-    el.insert("a", 10)
-    el.insert("A", 20)
-
-    assert list(el.start_stop_pairs("a")) == [(10, 20)]
-
-
-def test_overlapping():
-    el = EventLogger()
-
-    el.insert("a", 10)
-    el.insert("a", 15)
-    el.insert("A", 20)
-    el.insert("A", 25)
-
-    assert list(el.start_stop_pairs("a")) == [(10, 20), (15, 25)]
+passing = Parametrizations()
+passing.add("empty")
+passing.add("simple", [10], [20], [(10, 20)])
+passing.add("overlapping", [10, 15], [20, 25], [(10, 20), (15, 25)])
+passing.add("start_stop_same", [10, 20], [20, 25], [(10, 20), (20, 25)])
+passing.add("from_before", [], [20], [(Special.BEFORE, 20)])
+passing.add("to_after", [10], [], [(10, Special.AFTER)])
+passing.add("extra_starts", [5, 10], [20], [(5, 20), (10, Special.AFTER)])
 
 
-def test_start_stop_same():
-    el = EventLogger()
-
-    el.insert("a", 10)
-    el.insert("a", 20)
-    el.insert("A", 20)
-    el.insert("A", 25)
-
-    assert list(el.start_stop_pairs("a")) == [(10, 20), (20, 25)]
+@pytest.mark.parametrize(passing.argnames, passing.args, ids=passing.ids)
+def test_pass(starts, stops, expecteds):
+    _check(starts, stops, expecteds)
 
 
-def test_from_before():
-    el = EventLogger()
-    el.insert("A", 20)
-    assert list(el.start_stop_pairs("a")) == [(Special.BEFORE, 20)]
+failing = Parametrizations()
+failing.add("extra_stops", [10], [20, 25], [(Special.BEFORE, 20), (10, 25)])
 
 
-def test_to_after():
-    el = EventLogger()
-    el.insert("a", 10)
-    assert list(el.start_stop_pairs("a")) == [(10, Special.AFTER)]
-
-
-def test_undo():
-    el = EventLogger()
-
-    el.insert("a", 10)
-    el.insert("A", 20)
-
-    assert list(el.start_stop_pairs("a")) == [(10, 20)]
-    el.undo()
-    assert list(el.start_stop_pairs("a")) == [(10, Special.AFTER)]
-    el.undo()
-    assert list(el.start_stop_pairs("a")) == []
-
-
-def test_redo():
-    el = EventLogger()
-
-    el.insert("a", 10)
-    el.insert("A", 20)
-
-    assert list(el.start_stop_pairs("a")) == [(10, 20)]
-    el.undo()
-    assert list(el.start_stop_pairs("a")) == [(10, Special.AFTER)]
-    el.undo()
-    assert list(el.start_stop_pairs("a")) == []
-    el.redo()
-    assert list(el.start_stop_pairs("a")) == [(10, Special.AFTER)]
-    el.redo()
-    assert list(el.start_stop_pairs("a")) == [(10, 20)]
-
-
-def test_extra_before():
-    el = EventLogger()
-
-    el.insert("a", 5)
-    el.insert("a", 10)
-    el.insert("A", 20)
-
-    assert list(el.start_stop_pairs("a")) == [(5, 20), (10, Special.AFTER)]
-
-
-@pytest.mark.xfail
-def test_extra_after():
-    el = EventLogger()
-
-    el.insert("a", 10)
-    el.insert("A", 20)
-    el.insert("A", 25)
-
-    assert list(el.start_stop_pairs("a")) == [(Special.BEFORE, 20), (10, 25)]
+@pytest.mark.parametrize(failing.argnames, failing.args, ids=failing.ids)
+@pytest.mark.xfail(strict=True)
+def test_fail(starts, stops, expecteds):
+    _check(starts, stops, expecteds)

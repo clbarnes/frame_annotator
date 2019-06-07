@@ -33,4 +33,3 @@
 * Add changelog
 * Add single-keypress deletion (shift+delete)
 * Fix some documentation inconsistency
- 
