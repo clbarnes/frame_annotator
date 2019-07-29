@@ -1,7 +1,7 @@
 imageio==2.5.0
 pygame==1.9.6
 pandas==0.25.0
-numpy==1.16.4
+numpy==1.17.0
 scikit-image==0.15.0
 pytest==5.0.1
 toml==0.10.0
