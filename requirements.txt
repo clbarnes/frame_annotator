@@ -1,6 +1,6 @@
 imageio==2.5.0
 pygame==1.9.6
-pandas==0.25.0
+pandas==0.25.1
 numpy==1.17.1
 scikit-image==0.15.0
 pytest==5.1.1
