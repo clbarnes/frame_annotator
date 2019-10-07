@@ -1,4 +1,4 @@
-imageio==2.5.0
+imageio==2.6.0
 pygame==1.9.6
 pandas==0.25.1
 numpy==1.17.2
