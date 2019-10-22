@@ -2,7 +2,7 @@ imageio==2.6.1
 pygame==1.9.6
 pandas==0.25.1
 numpy==1.17.3
-scikit-image==0.16.1
+scikit-image==0.16.2
 pytest==5.2.1
 toml==0.10.0
 setuptools==41.4.0
