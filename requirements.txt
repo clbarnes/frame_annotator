@@ -3,7 +3,7 @@ pygame==1.9.6
 pandas==0.25.3
 numpy==1.17.4
 scikit-image==0.16.2
-pytest==5.2.3
+pytest==5.2.4
 toml==0.10.0
 setuptools==41.6.0
 wheel==0.33.6
