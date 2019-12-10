@@ -130,7 +130,7 @@ d = "right"
 
 ```
 
-See [the default config file](fran/config.toml) for the defaults.
+See [the default config file](fran/config.toml) for the defaults and other settings which can be configured.
 
 #### Output
 
@@ -184,7 +184,7 @@ optional arguments:
 ## N.B.
 
 [MacOS disagrees with pygame](https://bitbucket.org/pygame/pygame/issues/203/window-does-not-get-focus-on-os-x-with)
- if installed in a virtual environment: 
+ if installed in a virtual environment:
  use the system python (if 3.7+ is available) or one installed with homebrew.
  (if 3.7+ is available) or one installed with homebrew.
 
