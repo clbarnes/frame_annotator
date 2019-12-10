@@ -2,6 +2,10 @@
 
 ## In progress
 
+* undocumented
+
+## 0.8.7 (2019-12-10)
+
 * Fixed cascading configs
 
 ## 0.8.6 (2019-06-06)
