@@ -72,7 +72,8 @@ class Config:
             },
             "keys": self.keys,
         }
-        toml.dump(d, fpath)
+        with open(fpath, "w") as f:
+            toml.dump(d, f)
 
 
 def parse_args(args=None) -> Namespace:
