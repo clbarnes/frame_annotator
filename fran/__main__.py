@@ -13,7 +13,9 @@ from fran.common import parse_keys, setup_logging
 from fran.gui import run
 from fran.constants import (
     CONTROLS,
-DEFAULT_FPS, DEFAULT_CACHE_SIZE, DEFAULT_THREADS,
+    DEFAULT_FPS,
+    DEFAULT_CACHE_SIZE,
+    DEFAULT_THREADS,
     default_config_dict,
 )
 
@@ -62,11 +64,7 @@ class Config:
 
     def write_toml(self, fpath):
         d = {
-            "settings": {
-                "fps": self.fps,
-                "cache": self.cache,
-                "threads": self.threads,
-            },
+            "settings": {"fps": self.fps, "cache": self.cache, "threads": self.threads},
             "transform": {
                 "flipx": self.flipx,
                 "flipy": self.flipy,
@@ -95,7 +93,7 @@ def parse_args(args=None) -> Namespace:
         "-o",
         type=Path,
         help="Path to CSV for loading/saving. "
-             "If no path is selected when you save, a file dialog will open.",
+        "If no path is selected when you save, a file dialog will open.",
     )
     parser.add_argument("--config", "-c", help="Path to TOML file for config")
     parser.add_argument(
@@ -125,21 +123,13 @@ def parse_args(args=None) -> Namespace:
         type=parse_keys,
         default=dict(),
         help='Optional mappings from event name to key, in the format "w=forward,a=left,s=back,d=right". '
-             "These are additive with those defined in the config",
+        "These are additive with those defined in the config",
     )
     parser.add_argument(
-        "--flipx",
-        "-x",
-        action="store_true",
-        default=None,
-        help="Flip image in x",
+        "--flipx", "-x", action="store_true", default=None, help="Flip image in x"
     )
     parser.add_argument(
-        "--flipy",
-        "-y",
-        action="store_true",
-        default=None,
-        help="Flip image in y",
+        "--flipy", "-y", action="store_true", default=None, help="Flip image in y"
     )
     parser.add_argument(
         "--rotate",
@@ -171,62 +161,21 @@ def parse_args(args=None) -> Namespace:
 
 def generate_config():
     config = Config().replace_from_config_dict(default_config_dict)
+    logger.debug("Config including defaults: %s", config)
 
     parsed = parse_args()
     if parsed.config:
-        logger.info("Loading config file from %s", config.write_config)
+        logger.info("Loading config file from %s", parsed.write_config)
         config = config.replace_from_toml(parsed.config)
+        logger.debug("Config including %s: %s", parsed.write_config, config)
     return config.replace_from_namespace(parsed)
-
-    return config
-
-    keys_mapping = DEFAULT_KEYS.copy()
-
-    if parsed.config:
-        logger.info("Loading config file from %s", parsed.config)
-        config = toml.load(parsed.config)
-
-        for setting_key in ("fps", "cache", "threads"):
-            if getattr(parsed, setting_key) is None:
-                setattr(
-                    parsed,
-                    setting_key,
-                    config.get("settings", dict()).get(
-                        setting_key, default_config_dict["settings"][setting_key]
-                    ),
-                )
-
-        keys_mapping.replace(config.get("keys", dict()))
-
-    keys_mapping.replace(parsed.keys)
-    parsed.keys = keys_mapping
-
-    if parsed.write_config:
-        logger.info("Writing config file to %s and exiting", parsed.write_config)
-        d = {
-            "settings": {
-                "fps": parsed.fps,
-                "cache": parsed.cache,
-                "threads": parsed.threads,
-            },
-            "transform": {
-                "flipx": parsed.flipx,
-                "flipy": parsed.flipy,
-                "rotate": parsed.rotate,
-            },
-            "keys": parsed.keys,
-        }
-        with open(parsed.write_config, "w") as f:
-            toml.dump(d, f)
-        sys.exit(0)
-
-    return parsed
 
 
 def main():
     config = generate_config()
 
     setup_logging(config.verbose, config.logfile)
+    logger.info("Configuration: %s", config)
 
     if config.version:
         print(__version__)
