@@ -2,7 +2,7 @@
 
 ## In progress
 
-* undocumented
+* Fixed cascading configs
 
 ## 0.8.6 (2019-06-06)
 
