@@ -9,7 +9,7 @@ flipy = false
 rotate = 0
 
 [keys]
-#r = "right_turn"
-#l = "left_turn"
-#f = "forward"
-#b = "back"
+#w = "forward"
+#a = "right_turn"
+#s = "back"
+#d = "left_turn"
