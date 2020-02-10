@@ -3,7 +3,13 @@ dist: xenial
 sudo: true
 python:
   - 3.7
-#  - 3.8
+  - 3.8
+  - 'nightly'
+
+matrix:
+  allow_failures:
+    - python: 'nightly'
+
 notifications:
   email: false
 cache: pip
