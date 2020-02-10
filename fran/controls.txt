@@ -36,7 +36,8 @@ CTRL + d to dump the event log for debugging
 
 Other
 =====
-CTRL + s to save
+CTRL + j to Jump to a frame
+CTRL + s to Save
 CTRL + z to undo
-CTRL + r to redo
-CTRL + h to show this message
+CTRL + r to Redo
+CTRL + h to show this Help message

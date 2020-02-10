@@ -158,6 +158,8 @@ class Window:
                         self._handle_note()
                     elif event.key == pygame.K_d:  # dump event JSON
                         self._dump_events()
+                    elif event.key == pygame.K_j:  # jump to frame
+                        self._handle_frame_jump()
                 elif event.key == pygame.K_PERIOD:  # aka ">" step right
                     return self._handle_step_right()
                 elif event.key == pygame.K_COMMA:  # aka "<" step left
@@ -202,6 +204,27 @@ class Window:
         self.print(
             f"Frame {frame}, "
             f"contrast = ({contrast_lower:.02f}, {contrast_upper:.02f})"
+        )
+
+    def _handle_frame_jump(self):
+        idx = self._select_frame_jump()
+        if idx is None:
+            return
+        self.logger.info("Jumping to frame %s", idx)
+        try:
+            self.spooler.jump_to(idx)
+        except ValueError:
+            self.logger.warn("Index outside of frame range, aborting jump")
+        self.step(0, True)
+
+    def _select_frame_jump(self):
+        self.update_caption("see event prompt")
+        self.logger.info("Selecting frame")
+        return simpledialog.askinteger(
+            "Jump to frame",
+            "Select frame to jump to",
+            minvalue=0,
+            maxvalue=self.spooler.frame_count - 1,
         )
 
     def _select_in_progress_event(self, title="Select event", auto=True):

@@ -89,10 +89,11 @@ CTRL + d to dump the event log for debugging
 
 Other
 =====
-CTRL + s to save
+CTRL + j to Jump to a frame
+CTRL + s to Save
 CTRL + z to undo
-CTRL + r to redo
-CTRL + h to show this message
+CTRL + r to Redo
+CTRL + h to show this Help message
 ```
 
 #### Examples
@@ -181,12 +182,11 @@ optional arguments:
   --print, -p           Print results to stdout, instead of saving file back
 ```
 
-## N.B.
+## MacOS
 
 [MacOS disagrees with pygame](https://bitbucket.org/pygame/pygame/issues/203/window-does-not-get-focus-on-os-x-with)
  if installed in a virtual environment:
  use the system python (if 3.7+ is available) or one installed with homebrew.
- (if 3.7+ is available) or one installed with homebrew.
 
 
 ## Contributing
@@ -199,3 +199,9 @@ pip install -e .
 # Install pre-commit hooks for lint/formatting
 pre-commit install
 ```
+
+## Attributions
+
+Test data [JeffT1_le.tif](./data/JeffT1_le.tif) from [ImageJ image repository](https://imagej.nih.gov/ij/images/t1-head-raw.zip).
+
+Thanks to Nadine Randel for feature requests and bug reports.

@@ -1,4 +1,5 @@
 import contextlib
+from itertools import zip_longest
 from collections import deque
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
@@ -151,6 +152,26 @@ class FrameSpooler:
             [self.fetch_frame(idx) for idx in range(cache_size)], cache_size
         )
 
+    def rebuild_cache(self):
+        for item in self.cache:
+            item.cancel()
+
+        self.idx_in_cache = self.half_cache
+        leftmost, rightmost = self.cache_range()
+        self.idx_in_cache = self.current_idx - leftmost
+
+        self.cache = deque(
+            [self.fetch_frame(idx) for idx in range(leftmost, rightmost)],
+            len(self.cache),
+        )
+
+    def jump_to(self, idx):
+        if self.frame_count >= idx < 0:
+            raise ValueError("Index outside of frame range")
+        self.current_idx = idx
+        self.rebuild_cache()
+        return self.current
+
     @contextlib.contextmanager
     def frames(self):
         accessor = self.accessor_pool.get(block=True)
@@ -214,11 +235,7 @@ class FrameSpooler:
 
     def fetch_frame(self, idx):
         if 0 <= idx < self.frame_count:
-            f = self.executor.submit(
-                self._fetch_frame,
-                idx
-                # self._fetch_frame, idx, self.contrast_lower, self.contrast_upper
-            )
+            f = self.executor.submit(self._fetch_frame, idx)
         else:
             f = Future()
             f.set_result(None)
