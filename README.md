@@ -202,6 +202,5 @@ pre-commit install
 
 ## Attributions
 
-Test data [JeffT1_le.tif](./data/JeffT1_le.tif) from [ImageJ image repository](https://imagej.nih.gov/ij/images/t1-head-raw.zip).
+Thanks to Nadine Randel for feature requests, bug reports, and test data.
 
-Thanks to Nadine Randel for feature requests and bug reports.
