@@ -1,5 +1,4 @@
 import contextlib
-from itertools import zip_longest
 from collections import deque
 from concurrent.futures import Future
 from concurrent.futures.thread import ThreadPoolExecutor
