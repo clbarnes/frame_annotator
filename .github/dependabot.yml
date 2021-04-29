@@ -1,0 +1,28 @@
+version: 2
+updates:
+- package-ecosystem: pip
+  directory: "/"
+  schedule:
+    interval: monthly
+    time: "10:00"
+  open-pull-requests-limit: 10
+  ignore:
+  - dependency-name: pre-commit
+    versions:
+    - 2.10.0
+    - 2.9.3
+  - dependency-name: setuptools
+    versions:
+    - 51.1.1
+    - 52.0.0
+  - dependency-name: numpy
+    versions:
+    - 1.19.4
+    - 1.20.0
+  - dependency-name: pandas
+    versions:
+    - 1.2.0
+    - 1.2.1
+  - dependency-name: pytest
+    versions:
+    - 6.2.1
